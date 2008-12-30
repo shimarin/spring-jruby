@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src/java"/>
+	<classpathentry kind="src" path="src/test"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="lib" path="lib/applicationserver.jar"/>
+	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/commons-beanutils-1.8.0.jar"/>
+	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/dom4j-1.6.1.jar"/>
+	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/ejb3-persistence.jar"/>
+	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/hibernate-3.3.1.GA.jar"/>
+	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/hibernate-annotations-3.4.0.GA.jar"/>
+	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/icu4j-3_8_1.jar"/>
+	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/jruby-1.0.3.jar"/>
+	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/jta-1.1.jar"/>
+	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/slf4j-api-1.5.6.jar"/>
+	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/slf4j-jcl-1.5.6.jar"/>
+	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/spring-2.5.6.jar"/>
+	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/velocity-1.6.1.jar"/>
+	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/xwork-2.1.1.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>

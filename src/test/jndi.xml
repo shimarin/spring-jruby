@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans">
+
+	<!-- for PostgreSQL -->
+	<bean id="dataSource" class="org.postgresql.ds.PGPoolingDataSource">
+		<property name="serverName" value="stbbsnet.local"/>
+		<property name="databaseName" value="stbbsnet"/>
+		<property name="user" value="stbbsnet"/>
+		<property name="password" value=""/>
+	</bean>
+
+	<bean id="testDataSource" class="org.postgresql.ds.PGPoolingDataSource">
+		<property name="serverName" value="stbbsnet.local"/>
+		<property name="databaseName" value="stbbsnet-test"/>
+		<property name="user" value="stbbsnet"/>
+		<property name="password" value=""/>
+	</bean>
+
+	<bean id="jndi" class="org.apache.xbean.spring.jndi.DefaultContext">
+	    <property name="entries">
+	      <map>
+	      	<entry key="java:comp/env/jdbc/stbbsnet">
+	      		<ref bean="dataSource"/>
+	      	</entry>
+	      	<entry key="java:comp/env/jdbc/stbbsnet-test">
+	      		<ref bean="testDataSource"/>
+	      	</entry>
+	      	<entry key="java:comp/env/mail/Session">
+	      		<bean class="net.stbbs.xbean.spring.jndi.MailSessionFactoryBean">
+	      			<property name="host" value="mail.stbbs.net"/>
+	      		</bean>
+	      	</entry>
+	      </map>
+	    </property>
+	</bean>
+
+
+</beans>

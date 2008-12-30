@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:util="http://www.springframework.org/schema/util"
+  xmlns:aop="http://www.springframework.org/schema/aop"
+  xmlns:tx="http://www.springframework.org/schema/tx"
+  xmlns:jee="http://www.springframework.org/schema/jee"
+  xmlns:lang="http://www.springframework.org/schema/lang"
+  xsi:schemaLocation="
+		http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util-2.0.xsd
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-2.0.xsd
+		http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-2.0.xsd
+		http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-2.0.xsd
+		http://www.springframework.org/schema/jee http://www.springframework.org/schema/jee/spring-jee-2.0.xsd
+		http://www.springframework.org/schema/lang http://www.springframework.org/schema/lang/spring-lang-2.0.xsd">
+
+	<jee:jndi-lookup id="dataSource" jndi-name="java:comp/env/jdbc/stbbsnet"/>
+	<jee:jndi-lookup id="mailSession" jndi-name="java:comp/env/mail/Session"/>
+	<tx:annotation-driven/>
+
+	<!-- Mapping the data source with Hibernate ORM -->
+	<bean id="sessionFactory" 
+		class="org.springframework.orm.hibernate3.annotation.AnnotationSessionFactoryBean">
+		<property name="dataSource" ref="dataSource"/>
+		<property name="schemaUpdate" value="true"/>
+		<property name="annotatedClasses">
+			<bean class="net.stbbs.hibernate.spring.AnnotatedEntityListFactoryBean">
+				<property name="package" value="net.stbbs.entities"/>
+			</bean>
+		</property>
+		<property name="hibernateProperties">
+			<props>
+				<prop key="hibernate.dialect">org.hibernate.dialect.PostgreSQLDialect</prop>
+				<prop key="hibernate.show_sql">true</prop>
+			</props>
+		</property>
+	</bean>
+	
+	<!-- Transaction manager for the Hibernate SessionFactory. --> 
+	<bean id="transactionManager" class="org.springframework.orm.hibernate3.HibernateTransactionManager"> 
+		<property name="sessionFactory" ref="sessionFactory"/> 
+	</bean>
+
+	<bean id="jdbcTemplate" class="org.springframework.jdbc.core.simple.SimpleJdbcTemplate">
+		<constructor-arg ref="dataSource"/>
+	</bean>
+
+	<bean id="sessionData" class="net.stbbs.member.SessionData" scope="session">
+		<aop:scoped-proxy/>
+	</bean>
+
+	<bean id="memberService" class="net.stbbs.member.MemberServiceImpl">
+		<property name="jdbcTemplate" ref="jdbcTemplate"/>
+		<property name="sessionData" ref="sessionData"/>
+	</bean>
+
+	<bean id="adminService" class="net.stbbs.admin.AdminService">
+		<property name="jdbcTemplate" ref="jdbcTemplate"/>
+	</bean>
+
+	<bean id="mailSender" class="org.springframework.mail.javamail.JavaMailSenderImpl">
+		<property name="session" ref="mailSession"/>
+	</bean>
+</beans>
