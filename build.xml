@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<project default="jar">
+
+	<property name="jar" value="spring-jruby.jar"/>
+	<property name="classes" value="build/classes"/>
+
+	<target name="jar">
+		<delete dir="build"/>
+		<mkdir dir="${classes}"/>
+		<javac srcdir="src/java" destdir="${classes}" encoding="UTF-8" debug="true">
+			<classpath>
+				<fileset dir="lib" includes="*.jar"/>
+				<fileset dir="src/webapp/WEB-INF/lib" includes="*.jar"/>
+			</classpath>
+		</javac>
+
+		<jar basedir="${classes}" jarfile="build/${jar}"/>
+	</target>
+	
+</project>

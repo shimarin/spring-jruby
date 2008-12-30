@@ -17,5 +17,10 @@
 	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/spring-2.5.6.jar"/>
 	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/velocity-1.6.1.jar"/>
 	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/xwork-2.1.1.jar"/>
+	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/hibernate-commons-annotations-3.4.0.GA.jar"/>
+	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/commons-collections-3.2.1.jar"/>
+	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/backport-util-concurrent.jar"/>
+	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/asm-2.2.3.jar"/>
+	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/javassist-3.8.1.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
