@@ -216,6 +216,8 @@ public class SpringIntegratedJRubyRuntime {
 		defineModule("net.stbbs.spring.jruby.modules.SQLMonitor");
 		defineModule("net.stbbs.spring.jruby.modules.SQLSupport");
 		
+		defineModule("net.stbbs.spring.jruby.modules.GraphicsSupport");
+		
 		ClassLoader cl = getClass().getClassLoader();
 		
 		if (ClassUtils.isPresent("javax.mail.internet.MimeMessage", cl)) {

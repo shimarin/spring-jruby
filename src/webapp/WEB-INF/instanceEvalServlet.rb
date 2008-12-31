@@ -3,3 +3,4 @@ include SQLMonitor
 include HibernateSupport
 include MailSupport
 include VelocitySupport
+include GraphicsSupport
