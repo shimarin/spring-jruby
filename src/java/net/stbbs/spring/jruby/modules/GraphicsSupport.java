@@ -14,6 +14,7 @@ import net.stbbs.spring.jruby.SpringIntegratedJRubyRuntime;
 
 import org.jruby.RubyFloat;
 import org.jruby.RubyNumeric;
+import org.jruby.javasupport.JavaEmbedUtils;
 import org.jruby.runtime.Block;
 import org.jruby.runtime.builtin.IRubyObject;
 
@@ -24,10 +25,16 @@ public class GraphicsSupport {
 	{
 		int type = BufferedImage.TYPE_INT_RGB;
 		if (args.length > 2) type = RubyNumeric.num2int(args[2]);
-		return ruby.toRuby(
-			new BufferedImage(
+		BufferedImage bi = new BufferedImage(
 				RubyNumeric.num2int(args[0]),
-				RubyNumeric.num2int(args[1]),type));
+				RubyNumeric.num2int(args[1]),type);
+
+		if (block.isGiven()) {
+			block.call(
+				ruby.getCurrentContext(), 
+				new IRubyObject[] {JavaEmbedUtils.javaToRuby(self.getRuntime(), bi.getGraphics())});
+		}
+		return ruby.toRuby(bi);
 	}
 	
 	@ModuleMethod(arity=ModuleMethod.ARITY_NO_ARGUMENTS)
