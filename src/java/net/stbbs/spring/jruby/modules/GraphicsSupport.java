@@ -1,6 +1,7 @@
 package net.stbbs.spring.jruby.modules;
 
 import java.awt.BasicStroke;
+import java.awt.Font;
 import java.awt.geom.GeneralPath;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
@@ -61,6 +62,18 @@ public class GraphicsSupport {
 		else if (args.length > 0) bs = new BasicStroke((float)RubyFloat.num2dbl(args[0]));
 		else bs = new BasicStroke();
 		return ruby.toRuby(bs);
+	}
+	
+	@ModuleMethod(arity=ModuleMethod.ARITY_THREE_ARGUMENTS)
+	public IRubyObject newFont(SpringIntegratedJRubyRuntime ruby,IRubyObject self, IRubyObject[] args, Block block)
+	{
+		return ruby.toRuby(new Font(args[0].asString().getUnicodeValue(), RubyNumeric.num2int(args[1]), RubyNumeric.num2int(args[2])));
+	}
+
+	@ModuleMethod(arity=ModuleMethod.ARITY_ONE_ARGUMENT)
+	public IRubyObject newFontBySize(SpringIntegratedJRubyRuntime ruby,IRubyObject self, IRubyObject[] args, Block block)
+	{
+		return ruby.toRuby(new Font(null, Font.PLAIN, RubyNumeric.num2int(args[0])));
 	}
 
 }
