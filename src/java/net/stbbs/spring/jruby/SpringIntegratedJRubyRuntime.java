@@ -229,6 +229,10 @@ public class SpringIntegratedJRubyRuntime {
 		
 		ClassLoader cl = getClass().getClassLoader();
 		
+		if (ClassUtils.isPresent("net.stbbs.spring.dbunit.TransactionAwareDataSourceDatabaseTester", cl)) {
+			defineModule("net.stbbs.spring.jruby.modules.DbUnitSupport");
+		}
+		
 		if (ClassUtils.isPresent("javax.mail.internet.MimeMessage", cl)) {
 			defineModule("net.stbbs.spring.jruby.modules.MailSupport");
 		}

@@ -84,6 +84,26 @@ public class GraphicsSupport extends AbstractModule {
 	{
 		return ruby.toRuby(new Font(null, Font.PLAIN, RubyNumeric.num2int(args[0])));
 	}
+	
+	@ModuleMethod(arity=ModuleMethod.ARITY_OPTIONAL)
+	public IRubyObject paint(SpringIntegratedJRubyRuntime ruby,IRubyObject self, IRubyObject[] args, Block block) throws IOException
+	{
+		final int type = BufferedImage.TYPE_INT_RGB;
+		int width = 512;
+		int height = 384;
+		if (args.length > 0) width = RubyNumeric.num2int(args[0]);
+		if (args.length > 1) height = RubyNumeric.num2int(args[1]);
+		BufferedImage bi = new BufferedImage(width, height,type);
+
+		if (block.isGiven()) {
+			block.call(
+				ruby.getCurrentContext(), 
+				new IRubyObject[] {ruby.toRuby(bi.getGraphics())});
+		}
+		ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		ImageIO.write(bi, "png", baos);
+		return ruby.toRuby(new DownloadContent("image/png", baos.toByteArray()));
+	}
 
 	/**
 	 * 定数の登録を行う

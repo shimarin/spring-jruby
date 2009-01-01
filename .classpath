@@ -22,5 +22,8 @@
 	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/slf4j-jcl-1.5.6.jar"/>
 	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/velocity-1.6.1.jar"/>
 	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/xwork-2.1.1.jar"/>
+	<classpathentry kind="lib" path="lib/dbunit-2.4.2.jar"/>
+	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/poi-3.2-FINAL-20081019.jar"/>
+	<classpathentry kind="lib" path="lib/spring-dbunit.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
