@@ -1,7 +1,6 @@
 package net.stbbs.spring.jruby.modules;
 
 import java.io.File;
-import java.io.IOException;
 import java.io.InputStream;
 
 import javax.sql.DataSource;
@@ -11,7 +10,6 @@ import net.stbbs.spring.jruby.SpringIntegratedJRubyRuntime;
 
 import org.dbunit.IDatabaseTester;
 import org.dbunit.database.IDatabaseConnection;
-import org.dbunit.dataset.DataSetException;
 import org.dbunit.dataset.IDataSet;
 import org.dbunit.dataset.excel.XlsDataSet;
 import org.dbunit.operation.DatabaseOperation;

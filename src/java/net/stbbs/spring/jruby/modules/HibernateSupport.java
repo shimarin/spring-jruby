@@ -1,12 +1,14 @@
 package net.stbbs.spring.jruby.modules;
 
-import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Iterator;
 
-import net.stbbs.hibernate.EntitySerializer;
+import javax.persistence.Table;
+import javax.sql.DataSource;
+
 import net.stbbs.spring.jruby.SpringIntegratedJRubyRuntime;
 
-import org.hibernate.LockMode;
 import org.hibernate.MappingException;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
@@ -17,8 +19,15 @@ import org.hibernate.tool.hbm2ddl.SchemaUpdate;
 import org.jruby.RubyArray;
 import org.jruby.runtime.Block;
 import org.jruby.runtime.builtin.IRubyObject;
+import org.springframework.jdbc.BadSqlGrammarException;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 public class HibernateSupport {
+
+	protected DataSource getDataSource(SpringIntegratedJRubyRuntime ruby, IRubyObject self)
+	{
+		return ruby.getComponent(self, "dataSource");
+	}
 
 	protected SessionFactory getSessionFactory(SpringIntegratedJRubyRuntime ruby, IRubyObject self)
 	{
@@ -144,43 +153,85 @@ public class HibernateSupport {
 		});
 	}
 */
+	protected Collection<Class> anArgToClasses(SpringIntegratedJRubyRuntime ruby, IRubyObject arg)
+	{
+		Object jo = ruby.toJava(arg);
+		String className = null;
+		Collection<Class> classes = new ArrayList<Class>();
+		try {
+			if (jo instanceof Class) {
+				classes.add((Class)jo);
+			} else if (arg instanceof RubyArray) {
+				RubyArray ra = (RubyArray)arg;
+				Iterator i = ra.iterator();
+				while (i.hasNext()) {
+					Object o = i.next();
+					if (o instanceof Class) {
+						classes.add((Class)o);
+					} else {
+						className = o.toString();
+						classes.add(Class.forName(className));
+					}
+				}
+			} else {
+				className = arg.asString().getUnicodeValue();
+				classes.add(Class.forName(className));
+			}
+		} catch (MappingException e) {
+			throw ruby.newArgumentError("Class '" + className + "' couldn't load.");
+		} catch (ClassNotFoundException e) {
+			throw ruby.newArgumentError("Class '" + className + "' couldn't load.");
+		}
+		return classes;
+	}
+
 	@ModuleMethod(arity=ModuleMethod.ARITY_ONE_REQUIRED)
 	public IRubyObject schemaUpdate(SpringIntegratedJRubyRuntime ruby,IRubyObject self, IRubyObject[] args, Block block) {
 		// 引数が足りない場合エラー
 		if (args.length < 1) {
 			throw self.getRuntime().newArgumentError("Method requires at least one argument.");
 		}
+		
+		Collection<Class> classes = this.anArgToClasses(ruby, args[0]);
+	
 		AnnotationConfiguration ac = new AnnotationConfiguration();
 		Settings settings = ((SessionFactoryImpl)getSessionFactory(ruby, self)).getSettings();
-		Object jo = ruby.toJava(args[0]);
-		String className = null;
-		try {
-			if (jo instanceof Class) {
-				ac.addAnnotatedClass((Class) jo);
-			} else if (args[0] instanceof RubyArray) {
-				RubyArray ra = (RubyArray)args[0];
-				Iterator i = ra.iterator();
-				while (i.hasNext()) {
-					Object o = i.next();
-					if (o instanceof Class) {
-						ac.addAnnotatedClass((Class)o);
-					} else {
-						className = o.toString();
-						ac.addAnnotatedClass(Class.forName(className));
-					}
-				}
-			} else {
-				className = args[0].asString().getUnicodeValue();
-				ac.addAnnotatedClass(Class.forName(className));
-			}
-		} catch (MappingException e) {
-			throw self.getRuntime().newArgumentError("Class '" + className + "' couldn't load.");
-		} catch (ClassNotFoundException e) {
-			throw self.getRuntime().newArgumentError("Class '" + className + "' couldn't load.");
+		for (Class c:classes) {
+			ac.addAnnotatedClass(c);
 		}
-	
 		SchemaUpdate su = new SchemaUpdate(ac, settings);
 		su.execute(true, true);
+
+		return ruby.getNil();
+	}
+
+	@ModuleMethod(arity=ModuleMethod.ARITY_ONE_REQUIRED)
+	public IRubyObject schemaReplace(SpringIntegratedJRubyRuntime ruby,IRubyObject self, IRubyObject[] args, Block block) {
+		// 引数が足りない場合エラー
+		if (args.length < 1) {
+			throw self.getRuntime().newArgumentError("Method requires at least one argument.");
+		}
+		
+		Collection<Class> classes = this.anArgToClasses(ruby, args[0]);
+
+		AnnotationConfiguration ac = new AnnotationConfiguration();
+		Settings settings = ((SessionFactoryImpl)getSessionFactory(ruby, self)).getSettings();
+		JdbcTemplate jt = new JdbcTemplate(getDataSource(ruby, self));
+		for (Class c:classes) {
+			Table t = (Table)c.getAnnotation(Table.class);
+			if (t != null) {
+				try {
+					jt.execute("drop table " + t.name());	// might be necessary to escape depend on kind of DBMS
+				}
+				catch (BadSqlGrammarException ex) {
+					// probably the table wasn't exist
+				}
+				ac.addAnnotatedClass(c);
+			}
+		}
+		SchemaUpdate su = new SchemaUpdate(ac, settings);
+		su.execute(true, true);
+
 		return ruby.getNil();
 	}
 }

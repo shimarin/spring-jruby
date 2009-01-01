@@ -6,6 +6,11 @@ import org.springframework.mail.MailParseException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMailMessage;
 
+/**
+ * ISO-2022-JPでメールをだすためだけにつくられたたんきのうなMimeMailMessageオブジェクト
+ * @author shimarin
+ *
+ */
 public class JisMailMessage extends MimeMailMessage {
 
 	static final String ENCODING = "iso-2022-jp";

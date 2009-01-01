@@ -1,7 +1,6 @@
 package net.stbbs.spring.jruby.modules;
 
 import java.awt.BasicStroke;
-import java.awt.Color;
 import java.awt.Font;
 import java.awt.geom.GeneralPath;
 import java.awt.image.BufferedImage;

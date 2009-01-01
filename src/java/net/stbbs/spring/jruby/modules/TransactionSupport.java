@@ -2,11 +2,7 @@ package net.stbbs.spring.jruby.modules;
 
 import net.stbbs.spring.jruby.SpringIntegratedJRubyRuntime;
 
-import org.jruby.RubyModule;
-import org.jruby.RubyString;
-import org.jruby.RubySymbol;
 import org.jruby.javasupport.JavaEmbedUtils;
-import org.jruby.runtime.Arity;
 import org.jruby.runtime.Block;
 import org.jruby.runtime.builtin.IRubyObject;
 import org.springframework.transaction.PlatformTransactionManager;

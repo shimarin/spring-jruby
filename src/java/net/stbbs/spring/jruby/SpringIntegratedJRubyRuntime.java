@@ -355,6 +355,11 @@ public class SpringIntegratedJRubyRuntime {
 		return newUnicodeString(str);
 	}
 	
+	public RaiseException newArgumentError(String message)
+	{
+		return ruby.newArgumentError(message);
+	}
+	
 	public IRubyObject allocate(String className)
 	{
 		return ruby.getClass(className).allocate();
