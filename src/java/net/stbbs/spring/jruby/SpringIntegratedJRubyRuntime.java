@@ -9,6 +9,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 
+import net.stbbs.spring.jruby.modules.AbstractModule;
 import net.stbbs.spring.jruby.modules.Module;
 import net.stbbs.spring.jruby.modules.ModuleException;
 import net.stbbs.spring.jruby.modules.ModuleMethod;
@@ -71,10 +72,18 @@ public class SpringIntegratedJRubyRuntime {
 		JavaEmbedUtils.terminate(ruby);
 	}
 	
+	public IRubyObject evalScript(String script)
+	{
+		return ruby.evalScript(script);
+	}
+	
 	public void defineModule(Object module, String moduleName)  throws ModuleException
 	{
 		RubyModule newModule = ruby.defineModule(moduleName);
 		registerModuleMethods(newModule, module);
+		if (module instanceof AbstractModule) {
+			((AbstractModule)module).onRegister(this, newModule);	// モジュール側に登録時処理の機会を与える
+		}
 	}
 	
 	public void defineModule(Class clazz, String moduleName) throws ModuleException

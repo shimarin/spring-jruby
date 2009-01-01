@@ -1,6 +1,7 @@
 package net.stbbs.spring.jruby.modules;
 
 import java.awt.BasicStroke;
+import java.awt.Color;
 import java.awt.Font;
 import java.awt.geom.GeneralPath;
 import java.awt.image.BufferedImage;
@@ -13,13 +14,14 @@ import net.stbbs.spring.jruby.DownloadContent;
 import net.stbbs.spring.jruby.SpringIntegratedJRubyRuntime;
 
 import org.jruby.RubyFloat;
+import org.jruby.RubyModule;
 import org.jruby.RubyNumeric;
 import org.jruby.javasupport.JavaEmbedUtils;
 import org.jruby.runtime.Block;
 import org.jruby.runtime.builtin.IRubyObject;
 
 @Module
-public class GraphicsSupport {
+public class GraphicsSupport extends AbstractModule {
 	@ModuleMethod(arity=ModuleMethod.ARITY_TWO_REQUIRED)
 	public IRubyObject newBufferedImage(SpringIntegratedJRubyRuntime ruby,IRubyObject self, IRubyObject[] args, Block block) 
 	{
@@ -81,6 +83,16 @@ public class GraphicsSupport {
 	public IRubyObject newFontBySize(SpringIntegratedJRubyRuntime ruby,IRubyObject self, IRubyObject[] args, Block block)
 	{
 		return ruby.toRuby(new Font(null, Font.PLAIN, RubyNumeric.num2int(args[0])));
+	}
+
+	/**
+	 * 定数の登録を行う
+	 */
+	@Override
+	public void onRegister(SpringIntegratedJRubyRuntime ruby, RubyModule module) {
+		// こんなやりかたでいいのか？
+		module.setConstant("Color", ruby.toRuby(ruby.evalScript("Java::java.awt.Color")));
+		module.setConstant("BasicStroke", ruby.toRuby(ruby.evalScript("Java::java.awt.BasicStroke")));
 	}
 
 }
