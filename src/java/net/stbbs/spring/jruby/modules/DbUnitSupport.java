@@ -51,17 +51,26 @@ public class DbUnitSupport {
 		
 		XlsDataSet ds = null;
 		Object o = ruby.toJava(args[0]);
+		InputStream inputStreamNeedToClose = null;
 		if (o instanceof File) {
 			ds = new XlsDataSet((File)o);
 		} else if (o instanceof InputStream) {
 			ds = new XlsDataSet((InputStream)o);
 		} else if (o instanceof Resource){
-			ds = new XlsDataSet(((Resource)o).getInputStream());
+			inputStreamNeedToClose = ((Resource)o).getInputStream(); 
+			ds = new XlsDataSet(inputStreamNeedToClose);
 		} else {
 			ds = new XlsDataSet(new File(args[0].asString().getUnicodeValue()));
 		}
-		
-		executeInsertOperation(ruby, self, ds); 
+		try {
+			executeInsertOperation(ruby, self, ds); 
+		}
+		finally {
+			if (inputStreamNeedToClose != null) {
+				inputStreamNeedToClose.close();
+				inputStreamNeedToClose = null;
+			}
+		}
 		return ruby.getNil();
 	}
 

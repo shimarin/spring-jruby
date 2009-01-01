@@ -1,6 +1,7 @@
 package net.stbbs.spring.jruby;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -143,6 +144,93 @@ public class SpringIntegratedJRubyRuntime {
 			}
 			public Arity getArity() {
 				return Arity.NO_ARGUMENTS;
+			}
+		});
+		clazz.definePrivateMethod("getResource", new Callback() {
+			public IRubyObject execute(IRubyObject self, IRubyObject[] args, Block block) {
+				// 引数が０の場合エラー
+				if (args.length < 1) {
+					throw self.getRuntime().newArgumentError("Method requires at least one argument.");
+				}
+				return toRuby(applicationContext.getResource(args[0].asString().getUnicodeValue()));
+			}
+			public Arity getArity() {
+				return Arity.ONE_ARGUMENT;
+			}
+		});
+		clazz.definePrivateMethod("getResourceAsInputStream", new Callback() {
+			public IRubyObject execute(IRubyObject self, IRubyObject[] args, Block block) {
+				// 引数が０の場合エラー
+				if (args.length < 1) {
+					throw self.getRuntime().newArgumentError("Method requires at least one argument.");
+				}
+				Resource r = applicationContext.getResource(args[0].asString().getUnicodeValue());
+				InputStream is = null;
+				try {
+					is = r.getInputStream();
+				} catch (IOException e) {
+					ruby.newIOError(e.getMessage());
+				}
+				try {
+					if (block.isGiven()) {
+						block.call(
+							ruby.getCurrentContext(), 
+							new IRubyObject[] {toRuby(is)});
+					}
+				}
+				finally {
+					if (is != null) {
+						try {
+							is.close();
+						} catch (IOException e) {
+							ruby.newIOError(e.getMessage());
+						}
+					}
+				}
+
+				return toRuby(r);
+			}
+			public Arity getArity() {
+				return Arity.ONE_ARGUMENT;
+			}
+		});
+		clazz.definePrivateMethod("download", new Callback() {
+			public IRubyObject execute(IRubyObject self, IRubyObject[] args, Block block) {
+				// 引数が０の場合エラー
+				if (args.length < 1) {
+					throw self.getRuntime().newArgumentError("Method requires at least one argument.");
+				}
+				String contentType = "text/plain";
+				if (args.length > 1) {
+					contentType = args[1].asString().getUnicodeValue();
+				}
+				// 今はとりあえず第1引数をResourceとして決め打ちで扱う
+				Resource r = (Resource)toJava(args[0]);
+				InputStream is = null;
+				ByteArrayOutputStream baos = new ByteArrayOutputStream();
+				byte[] buf = new byte[1024];
+				try {
+					is = r.getInputStream();
+					int n;
+					while ((n = is.read(buf)) >= 0) {
+						baos.write(buf, 0, n);
+					}
+				} catch (IOException e) {
+					ruby.newIOError(e.getMessage());
+				}
+				finally {
+					if (is != null) {
+						try {
+							is.close();
+						} catch (IOException e) {
+							ruby.newIOError(e.getMessage());
+						}
+					}
+				}
+				return toRuby(new DownloadContent(contentType, baos.toByteArray()));
+			}
+			public Arity getArity() {
+				return Arity.ONE_REQUIRED;
 			}
 		});
 		clazz.definePrivateMethod("p", new Callback(){
