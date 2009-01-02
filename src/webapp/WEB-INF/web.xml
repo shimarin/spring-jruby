@@ -7,11 +7,22 @@
 	<servlet>
 	    <servlet-name>InstanceEvalServlet</servlet-name>
 	    <servlet-class>net.stbbs.spring.jruby.InstanceEvalServlet</servlet-class>
+		<load-on-startup>1</load-on-startup>
 	</servlet>
 	<servlet-mapping>
 	    <servlet-name>InstanceEvalServlet</servlet-name>
 	    <url-pattern>/instance_eval</url-pattern>
 	</servlet-mapping>
+
+	<filter>
+		<filter-name>dispatcher</filter-name>
+		<filter-class>net.stbbs.spring.jruby.DispatcherFilter</filter-class>
+	</filter>
+
+	<filter-mapping>
+		<filter-name>dispatcher</filter-name>
+		<url-pattern>/*</url-pattern>
+	</filter-mapping>
 
 	<listener>
 	    <listener-class>org.springframework.web.context.ContextLoaderListener</listener-class>

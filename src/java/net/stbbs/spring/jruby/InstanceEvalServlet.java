@@ -37,13 +37,12 @@ public class InstanceEvalServlet extends HttpServlet {
 	 */
 	private static final long serialVersionUID = 1L;
 	WebApplicationContext wac;
-	SpringIntegratedJRubyRuntime ruby;
 	
 	@Override
 	public void init() throws ServletException
 	{
 		wac = WebApplicationContextUtils.getRequiredWebApplicationContext(this.getServletContext());
-		ruby = SpringIntegratedJRubyRuntime.init(wac);
+		final SpringIntegratedJRubyRuntime ruby = SpringIntegratedJRubyRuntime.init(wac);
 		try {
 			ruby.defineVariousModules();
 		} catch (ModuleException ex) {
@@ -69,6 +68,13 @@ public class InstanceEvalServlet extends HttpServlet {
 		
 		ruby.getString().defineMethod("inspect", new StringInspect());
 		ruby.setGetBytes();	// getBytesを使えるようにする
+		
+		getServletContext().setAttribute("ruby", ruby);
+	}
+	
+	protected SpringIntegratedJRubyRuntime getRuby()
+	{
+		return (SpringIntegratedJRubyRuntime)getServletContext().getAttribute("ruby");
 	}
 	
 	static protected String escapeHTML(String input, boolean lf2br){
@@ -160,7 +166,8 @@ public class InstanceEvalServlet extends HttpServlet {
 		out.println("</table>");
 	}
 	
-	protected void printResult(PrintWriter out, Object result)
+	static protected void printResult(PrintWriter out, SpringIntegratedJRubyRuntime ruby, 
+			Object result)
 	{
 		out.println("<h1>result</h1>");
 		if (result == null) {
@@ -210,7 +217,7 @@ public class InstanceEvalServlet extends HttpServlet {
 		out.println(escapeHTML(obj2str(result)));
 	}
 	
-	protected void printException(PrintWriter out, RubyException ex) throws IOException
+	static protected void printException(PrintWriter out, RubyException ex) throws IOException
 	{
 		out.println("<h1>exception</h1>");
 		out.println(escapeHTML(ex.message.toString()));
@@ -230,6 +237,7 @@ public class InstanceEvalServlet extends HttpServlet {
 		IRubyObject result = null;
 		RubyException re = null;
 		boolean exec = false;
+		SpringIntegratedJRubyRuntime ruby = getRuby();
 		try {
 			if (expression != null) {
 				IRubyObject instanceEvaluableInstance = ruby.allocate("ApplicationContext");
@@ -254,7 +262,7 @@ public class InstanceEvalServlet extends HttpServlet {
 		
 		// ダウンロードの場合の処理
 		if (exec) {
-			Object o = ruby.toJava(result);
+			Object o = getRuby().toJava(result);
 			if (o instanceof DownloadContent) {
 				DownloadContent dc = (DownloadContent)o;
 				response.setContentType(dc.getContentType());
@@ -273,7 +281,7 @@ public class InstanceEvalServlet extends HttpServlet {
 		printForm(out, expression);
 
 		if (exec) {
-			printResult(out, result);
+			printResult(out, ruby, result);
 		}
 		if (re != null) {
 			printException(out, re);

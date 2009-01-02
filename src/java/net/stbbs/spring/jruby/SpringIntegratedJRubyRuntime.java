@@ -9,6 +9,8 @@ import java.io.UnsupportedEncodingException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
 import net.stbbs.spring.jruby.modules.AbstractModule;
 import net.stbbs.spring.jruby.modules.Module;
@@ -39,6 +41,7 @@ import com.ibm.icu.text.Normalizer;
 public class SpringIntegratedJRubyRuntime {
 	Ruby ruby;
 	private ApplicationContext applicationContext;
+	private Map<String, Object> modules = new HashMap<String,Object>();
 	static Log logger = LogFactory.getLog(SpringIntegratedJRubyRuntime.class);	
 
 	public static SpringIntegratedJRubyRuntime init(ApplicationContext applicationContext)
@@ -81,9 +84,19 @@ public class SpringIntegratedJRubyRuntime {
 	public void defineModule(Object module, String moduleName)  throws ModuleException
 	{
 		RubyModule newModule = ruby.defineModule(moduleName);
+		synchronized (modules) {
+			modules.put(moduleName, module);
+		}
 		registerModuleMethods(newModule, module);
 		if (module instanceof AbstractModule) {
 			((AbstractModule)module).onRegister(this, newModule);	// モジュール側に登録時処理の機会を与える
+		}
+	}
+	
+	public Object getModule(String name)
+	{
+		synchronized (modules) {
+			return modules.get(name);
 		}
 	}
 	
@@ -314,7 +327,7 @@ public class SpringIntegratedJRubyRuntime {
 		defineModule("net.stbbs.spring.jruby.modules.SQLSupport");
 		
 		defineModule("net.stbbs.spring.jruby.modules.GraphicsSupport");
-		
+		defineModule("net.stbbs.spring.jruby.modules.MVCSupport");
 		ClassLoader cl = getClass().getClassLoader();
 		
 		if (ClassUtils.isPresent("net.stbbs.spring.dbunit.TransactionAwareDataSourceDatabaseTester", cl)) {

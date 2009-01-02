@@ -25,5 +25,6 @@
 	<classpathentry kind="lib" path="lib/dbunit-2.4.2.jar"/>
 	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/poi-3.2-FINAL-20081019.jar"/>
 	<classpathentry kind="lib" path="lib/spring-dbunit.jar"/>
+	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/commons-lang-2.2.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
