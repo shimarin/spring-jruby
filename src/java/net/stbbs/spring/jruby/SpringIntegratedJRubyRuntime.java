@@ -438,7 +438,9 @@ public class SpringIntegratedJRubyRuntime {
 			newModule.defineMethod(methodName, new Callback(){
 				public IRubyObject execute(IRubyObject arg0, IRubyObject[] arg1, Block arg2) {
 					try {
-						return (IRubyObject)method.invoke(module, me, arg0, arg1, arg2);
+						Object rst = method.invoke(module, me, arg0, arg1, arg2);
+						if (rst instanceof IRubyObject) return (IRubyObject)rst;
+						return toRuby(rst);
 					} catch (IllegalArgumentException e) {
 						throw ruby.newNoMethodError(
 								"IllegalArgumentException", method.getName(), 

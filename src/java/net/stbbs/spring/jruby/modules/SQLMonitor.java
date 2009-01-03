@@ -25,7 +25,7 @@ public class SQLMonitor {
 	}
 	
 	@ModuleMethod(arity=ModuleMethod.ARITY_ONE_REQUIRED)
-	public IRubyObject q(SpringIntegratedJRubyRuntime ruby, IRubyObject self, IRubyObject[] args, Block block) {
+	public Object q(SpringIntegratedJRubyRuntime ruby, IRubyObject self, IRubyObject[] args, Block block) {
 		// 引数が０の場合エラー
 		if (args.length < 1) {
 			throw self.getRuntime().newArgumentError("Method requires at least one argument.");
@@ -40,11 +40,11 @@ public class SQLMonitor {
 		SqlRowSet rs = jt.queryForRowSet(
 			args[0].asString().getUnicodeValue(), sqlArgs
 		);
-		return ruby.toRuby(rs);
+		return rs;
 	}
 
 	@ModuleMethod(arity=ModuleMethod.ARITY_ONE_REQUIRED)
-	public IRubyObject tables(SpringIntegratedJRubyRuntime ruby,IRubyObject self, IRubyObject[] args, Block block)
+	public Object tables(SpringIntegratedJRubyRuntime ruby,IRubyObject self, IRubyObject[] args, Block block)
 	{
 		DataSource ds = getDataSource(ruby, self);
 		Connection con = null;
@@ -63,16 +63,16 @@ public class SQLMonitor {
 		}
 		if (databaseProductName.equals("PostgreSQL")) {
 			SqlRowSet rs = new JdbcTemplate(ds).queryForRowSet("select * from  pg_tables where schemaname = current_schema()");
-			return ruby.toRuby(rs);
+			return rs;
 		}
 		return ruby.getNil();
 	}
 
 	@ModuleMethod(arity=ModuleMethod.ARITY_ONE_REQUIRED)
-	public IRubyObject u(SpringIntegratedJRubyRuntime ruby,IRubyObject self, IRubyObject[] args, Block block) {
+	public Object u(SpringIntegratedJRubyRuntime ruby,IRubyObject self, IRubyObject[] args, Block block) {
 		// 引数が０の場合エラー
 		if (args.length < 1) {
-			throw self.getRuntime().newArgumentError("Method requires at least one argument.");
+			throw ruby.newArgumentError("Method requires at least one argument.");
 		}
 
 		// データソースを取得し、JdbcTemplateを作成
@@ -81,14 +81,14 @@ public class SQLMonitor {
 		for (int i = 1; i < args.length; i++) {
 			sqlArgs[i - 1] = ruby.toJava(args[i]);
 		}
-		return ruby.toRuby(jt.update(args[0].asString().getUnicodeValue(), sqlArgs));
+		return jt.update(args[0].asString().getUnicodeValue(), sqlArgs);
 	}
 
 	@ModuleMethod(arity=ModuleMethod.ARITY_ONE_REQUIRED)
-	public IRubyObject desc(SpringIntegratedJRubyRuntime ruby,IRubyObject self, IRubyObject[] args, Block block) {
+	public Object desc(SpringIntegratedJRubyRuntime ruby,IRubyObject self, IRubyObject[] args, Block block) {
 		// 引数が０の場合エラー
 		if (args.length != 1) {
-			throw self.getRuntime().newArgumentError("Method requires one argument.");
+			throw ruby.newArgumentError("Method requires one argument.");
 		}
 
 		// データソースを取得し、JdbcTemplateを作成
@@ -106,11 +106,11 @@ public class SQLMonitor {
 			int precision = md.getPrecision(i);
 			td.addColumn(new ColumnDescription(name, type, precision));
 		}
-		return ruby.toRuby(td);
+		return td;
 	}
 
 	@ModuleMethod(arity=ModuleMethod.ARITY_THREE_REQUIRED)
-	public IRubyObject sqlDate(SpringIntegratedJRubyRuntime ruby,IRubyObject self, IRubyObject[] args, Block block) {
+	public Object sqlDate(SpringIntegratedJRubyRuntime ruby,IRubyObject self, IRubyObject[] args, Block block) {
 		// 引数が足りない場合エラー
 		if (args.length < 3) {
 			throw self.getRuntime().newArgumentError("Method requires at least 3 argument.");
@@ -126,14 +126,14 @@ public class SQLMonitor {
     	cal.set(Calendar.MILLISECOND, args.length > 6? (int)args[6].convertToInteger().getLongValue() : 0);
 
     	if (args.length > 3) {
-    		return ruby.toRuby(new java.sql.Timestamp(cal.getTimeInMillis()));
+    		return new java.sql.Timestamp(cal.getTimeInMillis());
     	}
     	//else 
-		return ruby.toRuby(new java.sql.Date(cal.getTimeInMillis()));
+		return new java.sql.Date(cal.getTimeInMillis());
 	}
 
 	@ModuleMethod(arity=ModuleMethod.ARITY_NO_ARGUMENTS)
-	public IRubyObject sqlNow(SpringIntegratedJRubyRuntime ruby,IRubyObject self, IRubyObject[] args, Block block) {
-		return ruby.toRuby(new java.sql.Timestamp(System.currentTimeMillis()));
+	public Object sqlNow(SpringIntegratedJRubyRuntime ruby,IRubyObject self, IRubyObject[] args, Block block) {
+		return new java.sql.Timestamp(System.currentTimeMillis());
 	}
 }
