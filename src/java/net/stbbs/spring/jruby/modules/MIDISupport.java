@@ -275,4 +275,28 @@ public class MIDISupport {
 		return rsq;
 	}
 
+	@ModuleMethod(arity=ModuleMethod.ARITY_ONE_REQUIRED)
+	public IRubyObject play(final SpringIntegratedJRubyRuntime ruby,IRubyObject self, IRubyObject[] args, Block block) throws InvalidMidiDataException
+	{
+		if (args.length < 1) {
+			throw ruby.newArgumentError("Method required at least one argument");
+		}
+		IRubyObject seq = self.callMethod(ruby.getCurrentContext(), "newSequence");
+		int channel = 0;
+		for (IRubyObject arg:args) {
+			IRubyObject track = seq.callMethod(ruby.getCurrentContext(), "createTrack", RubyNumeric.int2fix(ruby.getRuntime(), channel));
+			if (arg instanceof Collection ) {
+				for (Object o:(Collection)arg) {
+					String mml = o.toString();
+					track.callMethod(ruby.getCurrentContext(), "<<", ruby.newString(mml));
+				}
+			} else {
+				String mml = arg.asString().getUnicodeValue();
+				track.callMethod(ruby.getCurrentContext(), "<<", ruby.newString(mml));
+			}
+			channel++;
+		}
+		return seq.callMethod(ruby.getCurrentContext(), "playSynchronous");
+	}
+
 }
