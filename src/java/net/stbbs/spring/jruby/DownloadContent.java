@@ -1,7 +1,10 @@
 package net.stbbs.spring.jruby;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 public class DownloadContent {
 	
@@ -32,6 +35,17 @@ public class DownloadContent {
 
 	public void out(OutputStream out) throws IOException {
 		out.write(content);
+	}
+	
+	public DownloadContent zip(String filename) throws IOException
+	{
+		ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		ZipOutputStream zout = new ZipOutputStream(baos);
+		zout.putNextEntry(new ZipEntry(filename));
+		zout.write(content);
+		zout.closeEntry();
+		zout.close();
+		return new DownloadContent("application/zip", baos.toByteArray());
 	}
 
 }

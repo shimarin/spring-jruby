@@ -334,6 +334,10 @@ public class SpringIntegratedJRubyRuntime {
 			defineModule("net.stbbs.spring.jruby.modules.DbUnitSupport");
 		}
 		
+		if (ClassUtils.isPresent("org.apache.poi.hssf.usermodel.HSSFWorkbook", cl)) {
+			defineModule("net.stbbs.spring.jruby.modules.POISupport");
+		}
+		
 		if (ClassUtils.isPresent("javax.mail.internet.MimeMessage", cl)) {
 			defineModule("net.stbbs.spring.jruby.modules.MailSupport");
 		}
@@ -371,6 +375,11 @@ public class SpringIntegratedJRubyRuntime {
 	public RaiseException newArgumentError(String message)
 	{
 		return ruby.newArgumentError(message);
+	}
+	
+	public RaiseException newIOError(String message)
+	{
+		return ruby.newIOError(message);
 	}
 	
 	public IRubyObject allocate(String className)

@@ -6,3 +6,4 @@ include VelocitySupport
 include GraphicsSupport
 include DbUnitSupport
 include MVCSupport
+include POISupport
