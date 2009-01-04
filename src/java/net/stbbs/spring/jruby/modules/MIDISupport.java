@@ -28,6 +28,7 @@ public class MIDISupport {
 		int position = RubyNumeric.fix2int(self.getInstanceVariable("@position"));
 		int octave = RubyNumeric.fix2int(self.getInstanceVariable("@octave"));
 		int notelen = RubyNumeric.fix2int(self.getInstanceVariable("@notelen"));
+		IRubyObject tie = self.getInstanceVariable("@tie");
 		int i = 0;
 		while (i < mml.length()) {
 			char c = mml.charAt(i);
@@ -83,6 +84,24 @@ public class MIDISupport {
 				}
 				self.setInstanceVariable("@notelen", RubyNumeric.int2fix(ruby.getRuntime(), notelen));
 				continue;
+			case 't':
+				int t = 0;
+				i++;
+				while (i < mml.length() && Character.isDigit(mml.charAt(i))) {
+					t *= 10;
+					t += Integer.parseInt(Character.toString(mml.charAt(i)));
+					i++;
+				}
+				continue;
+			case 'v':
+				int v = 0;
+				i++;
+				while (i < mml.length() && Character.isDigit(mml.charAt(i))) {
+					v *= 10;
+					v += Integer.parseInt(Character.toString(mml.charAt(i)));
+					i++;
+				}
+				continue;
 			case '@':
 				int prg = 0;
 				i++;
@@ -125,20 +144,40 @@ public class MIDISupport {
 				i++;
 			}
 			int ticks = len == 0? notelen : TICKS_PER_BEAT * 4 / len;
-			if (i < mml.length() && mml.charAt(i) == '.') {
+			if (i < mml.length() && mml.charAt(i) == '.') { // 付点
 				ticks = ticks * 3 / 2;
 				i++;
 			}
+			if (tie != null && !tie.isNil()) {
+				int prevnoteno = RubyNumeric.fix2int(tie);
+				if (prevnoteno != noteno) {
+					ShortMessage sm = new ShortMessage();
+					sm.setMessage(ShortMessage.NOTE_OFF, prevnoteno, 120);
+					track.add(new MidiEvent(sm, position));
+					tie = ruby.getNil();
+					self.setInstanceVariable("@tie", tie);	// タイ終了
+				}
+			}
 			if (noteno > 0) {
-				ShortMessage sm = new ShortMessage();
-				sm.setMessage(ShortMessage.NOTE_ON, noteno, 120);
-				track.add(new MidiEvent(sm, position));
-
+				if (tie == null || tie.isNil()) {	// タイ中じゃなければノートON
+					ShortMessage sm = new ShortMessage();
+					sm.setMessage(ShortMessage.NOTE_ON, noteno, 120);
+					track.add(new MidiEvent(sm, position));
+				} else {
+					tie = ruby.getNil();
+					self.setInstanceVariable("@tie", tie);	// タイ終了
+				}
+				
 				position += ticks;
 
-				sm = new ShortMessage();
-				sm.setMessage(ShortMessage.NOTE_OFF, noteno, 120);
-				track.add(new MidiEvent(sm, position));
+				if (i < mml.length() && mml.charAt(i) == '&') { // タイ
+					tie = RubyNumeric.int2fix(ruby.getRuntime(), noteno);
+					i++;
+				} else {
+					ShortMessage sm = new ShortMessage();
+					sm.setMessage(ShortMessage.NOTE_OFF, noteno, 120);
+					track.add(new MidiEvent(sm, position));
+				}
 			} else { // 休符
 				position += ticks;
 			}
