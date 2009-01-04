@@ -140,7 +140,7 @@ public class GraphicsSupport extends AbstractModule {
 		return bi.callMethod(ruby.getCurrentContext(), "download", ruby.newSymbol("png"));
 	}
 
-	@ModuleMethod(arity=ModuleMethod.ARITY_TWO_ARGUMENTS)
+	@ModuleMethod(arity=ModuleMethod.ARITY_OPTIONAL)
 	public Object generateAnimatedGif(SpringIntegratedJRubyRuntime ruby,IRubyObject self, IRubyObject[] args, Block block) throws IOException
 	{
 		AnimatedGifEncoder e = new AnimatedGifEncoder();

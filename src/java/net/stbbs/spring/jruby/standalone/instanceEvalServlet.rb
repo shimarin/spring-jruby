@@ -7,3 +7,4 @@ include GraphicsSupport
 include DbUnitSupport
 include MVCSupport
 include POISupport
+include MIDISupport

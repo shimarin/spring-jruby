@@ -328,6 +328,7 @@ public class SpringIntegratedJRubyRuntime {
 		defineModule("net.stbbs.spring.jruby.modules.SQLSupport");
 		
 		defineModule("net.stbbs.spring.jruby.modules.GraphicsSupport");
+		defineModule("net.stbbs.spring.jruby.modules.MIDISupport");
 		defineModule("net.stbbs.spring.jruby.modules.MVCSupport");
 		ClassLoader cl = getClass().getClassLoader();
 		
