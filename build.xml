@@ -3,7 +3,10 @@
 
 	<property name="jar" value="spring-jruby.jar"/>
 	<property name="classes" value="build/classes"/>
-
+	
+	<property name="standalone-jar" value="spring-jruby-standalone.jar"/>
+	<property name="standalone-classes" value="build/standalone"/>
+	
 	<target name="jar">
 		<delete dir="build"/>
 		<mkdir dir="${classes}"/>
@@ -15,6 +18,29 @@
 		</javac>
 
 		<jar basedir="${classes}" jarfile="build/${jar}"/>
+	</target>
+	
+	<target name="standalone">
+		<delete dir="build"/>
+		<mkdir dir="${standalone-classes}"/>
+		<unjar dest="${standalone-classes}">
+			<fileset dir="lib" includes="*.jar"/>
+			<fileset dir="src/webapp/WEB-INF/lib" includes="*.jar"/>
+		</unjar>
+		<javac srcdir="src/java" destdir="${standalone-classes}" encoding="UTF-8" debug="true">
+			<classpath>
+				<fileset dir="lib" includes="*.jar"/>
+				<fileset dir="src/webapp/WEB-INF/lib" includes="*.jar"/>
+			</classpath>
+		</javac>
+		<delete file="${standalone-classes}/META-INF/MANIFEST.MF"/>
+		<delete file="${standalone-classes}/META-INF/SUN_MICR.SF"/>
+		<jar basedir="${standalone-classes}" jarfile="build/${standalone-jar}">
+			<manifest>
+				<attribute name="Main-Class" value="net.stbbs.spring.jruby.standalone.Main"/>
+			</manifest>
+		</jar>
+
 	</target>
 	
 </project>

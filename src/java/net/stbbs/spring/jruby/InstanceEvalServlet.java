@@ -38,6 +38,8 @@ public class InstanceEvalServlet extends HttpServlet {
 	private static final long serialVersionUID = 1L;
 	WebApplicationContext wac;
 	
+	public static final String INIT_SCRIPT_PARAM_NAME = "init-script";
+	
 	@Override
 	public void init() throws ServletException
 	{
@@ -60,8 +62,14 @@ public class InstanceEvalServlet extends HttpServlet {
 				return ruby.toRuby(getServletContext());
 			}
 		});
+		String initScript = this.getInitParameter(INIT_SCRIPT_PARAM_NAME);
+		if (initScript == null) initScript = "WEB-INF/instanceEvalServlet.rb";
+		
+		String[] initScripts = initScript.split(",");
 		try {
-			ruby.evalInClass(clazz, "WEB-INF/instanceEvalServlet.rb", false);
+			for (String is:initScripts) {
+				ruby.evalInClass(clazz, is, false);
+			}
 		} catch (IOException e) {
 			throw new ServletException(e);
 		}
@@ -229,23 +237,29 @@ public class InstanceEvalServlet extends HttpServlet {
 		out.println(escapeHTML(baos.toString("UTF-8"), true));
 		baos.close();
 	}
+
+	public IRubyObject doInstanceEval(String expression)
+	{
+		SpringIntegratedJRubyRuntime ruby = getRuby();
+		IRubyObject instanceEvaluableInstance = ruby.allocate("ApplicationContext");
+		instanceEvaluableInstance.setInstanceVariable("@applicationContext",
+				JavaEmbedUtils.javaToRuby(instanceEvaluableInstance.getRuntime(), wac));
+		return instanceEvaluableInstance.callMethod(
+			ruby.getCurrentContext(), "instance_eval", 
+			ruby.newString(expression));
+	}
 	
 	protected void service(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException
 	{
+		request.setCharacterEncoding("UTF-8");
 		String expression = request.getParameter("expression");
 
 		IRubyObject result = null;
 		RubyException re = null;
 		boolean exec = false;
-		SpringIntegratedJRubyRuntime ruby = getRuby();
 		try {
 			if (expression != null) {
-				IRubyObject instanceEvaluableInstance = ruby.allocate("ApplicationContext");
-				instanceEvaluableInstance.setInstanceVariable("@applicationContext",
-						JavaEmbedUtils.javaToRuby(instanceEvaluableInstance.getRuntime(), wac));
-				result = instanceEvaluableInstance.callMethod(
-					ruby.getCurrentContext(), "instance_eval", 
-					ruby.newString(expression));
+				result = doInstanceEval(expression);
 				exec = true;
 			}
 		}
@@ -281,6 +295,7 @@ public class InstanceEvalServlet extends HttpServlet {
 		printForm(out, expression);
 
 		if (exec) {
+			SpringIntegratedJRubyRuntime ruby = getRuby();
 			printResult(out, ruby, result);
 		}
 		if (re != null) {

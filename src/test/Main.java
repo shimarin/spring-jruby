@@ -1,6 +1,8 @@
-import net.stbbs.applicationserver.SingleContextServer;
+import org.mortbay.jetty.Server;
+import org.mortbay.jetty.bio.SocketConnector;
+import org.mortbay.jetty.webapp.WebAppContext;
 
-public class Main extends SingleContextServer {
+public class Main extends Server {
 
 	/**
 	 * @param args
@@ -8,12 +10,18 @@ public class Main extends SingleContextServer {
 	 */
 	public static void main(String[] args) throws Exception {
 		Main me = new Main();
-		me.setContextPath("/");
-		me.setResourceBase("src/webapp");
+		SocketConnector connector = new SocketConnector();
+		connector.setPort(8080);
+		me.setConnectors(new SocketConnector[] {connector});
+		WebAppContext context = new WebAppContext();
 		
-		me.shutdownRunning();
+		context.setContextPath("/");
+		context.setResourceBase("src/webapp");
+		context.setParentLoaderPriority(true);
+
+		me.setHandler(context);
+		
 		me.start();
-		me.waitForShutdown();
 	}
 
 }

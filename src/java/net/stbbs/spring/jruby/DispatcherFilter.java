@@ -7,13 +7,11 @@ import java.io.PrintWriter;
 import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Map;
 
 import javax.servlet.Filter;
 import javax.servlet.FilterChain;
 import javax.servlet.FilterConfig;
-import javax.servlet.RequestDispatcher;
 import javax.servlet.ServletException;
 import javax.servlet.ServletOutputStream;
 import javax.servlet.ServletRequest;
@@ -23,19 +21,10 @@ import javax.servlet.http.HttpServletResponse;
 
 import net.stbbs.spring.jruby.modules.MVCSupport;
 
-import org.jruby.Ruby;
-import org.jruby.RubyClass;
 import org.jruby.RubyException;
-import org.jruby.RubyNil;
-import org.jruby.RubyObject;
 import org.jruby.RubyProc;
-import org.jruby.RubyString;
-import org.jruby.RubySymbol;
 import org.jruby.exceptions.RaiseException;
-import org.jruby.runtime.Arity;
-import org.jruby.runtime.Block;
 import org.jruby.runtime.builtin.IRubyObject;
-import org.jruby.runtime.callback.Callback;
 import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.context.support.WebApplicationContextUtils;
 
@@ -175,6 +164,8 @@ public class DispatcherFilter  implements Filter {
 	{
 		HttpServletRequest request = (HttpServletRequest)req;
 		HttpServletResponse response = (HttpServletResponse)res;
+
+		request.setCharacterEncoding("UTF-8");
 
 		SpringIntegratedJRubyRuntime ruby = getRuby();
 		MVCSupport mod = (MVCSupport)ruby.getModule("MVCSupport");

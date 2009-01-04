@@ -2,8 +2,7 @@
 <classpath>
 	<classpathentry kind="src" path="src/java"/>
 	<classpathentry kind="src" path="src/test"/>
-	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
-	<classpathentry kind="lib" path="lib/applicationserver.jar"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.launching.macosx.MacOSXType/JVM 1.6.0"/>
 	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/spring-2.5.6.jar"/>
 	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/asm-2.2.3.jar"/>
 	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/backport-util-concurrent.jar"/>
@@ -26,5 +25,11 @@
 	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/poi-3.2-FINAL-20081019.jar"/>
 	<classpathentry kind="lib" path="lib/spring-dbunit.jar"/>
 	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/commons-lang-2.2.jar"/>
+	<classpathentry kind="lib" path="lib/jetty-6.1.14.jar"/>
+	<classpathentry kind="lib" path="lib/mail.jar"/>
+	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/commons-logging-1.1.1.jar"/>
+	<classpathentry kind="lib" path="lib/servlet-api-2.5-6.1.14.jar"/>
+	<classpathentry kind="lib" path="lib/jetty-util-6.1.14.jar"/>
+	<classpathentry kind="lib" path="lib/h2.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
