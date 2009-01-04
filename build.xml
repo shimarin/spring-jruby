@@ -33,6 +33,9 @@
 				<fileset dir="src/webapp/WEB-INF/lib" includes="*.jar"/>
 			</classpath>
 		</javac>
+		<copy todir="${standalone-classes}">
+			<fileset dir="src/java" includes="**/*.xml,**/*.rb"/>
+		</copy>
 		<delete file="${standalone-classes}/META-INF/MANIFEST.MF"/>
 		<delete file="${standalone-classes}/META-INF/SUN_MICR.SF"/>
 		<jar basedir="${standalone-classes}" jarfile="build/${standalone-jar}">
