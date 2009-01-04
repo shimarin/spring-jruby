@@ -130,7 +130,7 @@ public class MIDISupport {
 				rtr.setInstanceVariable("@position", RubyNumeric.int2fix(ruby.getRuntime(), 0));
 				rtr.setInstanceVariable("@octave", RubyNumeric.int2fix(ruby.getRuntime(), 4));
 				rtr.setInstanceVariable("@beats", RubyNumeric.int2fix(ruby.getRuntime(), 4));
-				rtr.getSingletonClass().defineMethod("addNotes", new Callback() {
+				rtr.getSingletonClass().defineMethod("<<", new Callback() {
 					public IRubyObject execute(IRubyObject self, IRubyObject[] args, Block block) {
 						try {
 							for (IRubyObject arg:args) {
