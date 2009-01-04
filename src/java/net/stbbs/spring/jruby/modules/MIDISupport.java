@@ -161,7 +161,7 @@ public class MIDISupport {
 			if (noteno > 0) {
 				if (tie == null || tie.isNil()) {	// タイ中じゃなければノートON
 					ShortMessage sm = new ShortMessage();
-					sm.setMessage(ShortMessage.NOTE_ON, noteno, 120);
+					sm.setMessage(ShortMessage.NOTE_ON, noteno, 100);
 					track.add(new MidiEvent(sm, position));
 				} else {
 					tie = ruby.getNil();
@@ -175,7 +175,7 @@ public class MIDISupport {
 					i++;
 				} else {
 					ShortMessage sm = new ShortMessage();
-					sm.setMessage(ShortMessage.NOTE_OFF, noteno, 120);
+					sm.setMessage(ShortMessage.NOTE_OFF, noteno, 100);
 					track.add(new MidiEvent(sm, position));
 				}
 			} else { // 休符
