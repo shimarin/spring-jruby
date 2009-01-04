@@ -20,7 +20,7 @@ import org.jruby.runtime.builtin.IRubyObject;
 import org.jruby.runtime.callback.Callback;
 
 public class MIDISupport {
-	static final int TICKS_PER_BEAT = 96;
+	static final int TICKS_PER_BEAT = 96;	// 四分音符あたりのティック数
 	
 	protected void parseMML(final SpringIntegratedJRubyRuntime ruby, IRubyObject self, String mml) throws InvalidMidiDataException
 	{
