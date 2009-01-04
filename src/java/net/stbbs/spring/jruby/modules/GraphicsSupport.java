@@ -27,12 +27,43 @@ public class GraphicsSupport extends AbstractModule {
 	@ModuleMethod(arity=ModuleMethod.ARITY_TWO_REQUIRED)
 	public Object newBufferedImage(final SpringIntegratedJRubyRuntime ruby,IRubyObject self, IRubyObject[] args, Block block) 
 	{
+		// 引数が足りない場合エラー
+		if (args.length < 2) {
+			throw ruby.newArgumentError("Method requires at least two arguments.");
+		}
+
 		int type = BufferedImage.TYPE_INT_RGB;
 		if (args.length > 2) type = RubyNumeric.num2int(args[2]);
 		BufferedImage bi = new BufferedImage(
 				RubyNumeric.num2int(args[0]),
 				RubyNumeric.num2int(args[1]),type);
 
+		IRubyObject rbi = ruby.toRuby(bi);
+		rbi.getSingletonClass().defineMethod("download", new Callback() {
+			public IRubyObject execute(IRubyObject self, IRubyObject[] args, Block block) {
+				String format = "png";
+				if (args.length > 0) {
+					format = args[0].asString().getUnicodeValue();
+				}
+				BufferedImage bi = (BufferedImage)ruby.toJava(self);
+				ByteArrayOutputStream baos = new ByteArrayOutputStream();
+				try {
+					if (format.equals("png")) {
+							ImageIO.write(bi, "png", baos);
+						return ruby.toRuby(new DownloadContent("image/png", baos.toByteArray()) );
+					} else if (format.equals("jpeg") || format.equals("jpg")) {
+						ImageIO.write(bi, "jpg", baos);
+						return ruby.toRuby(new DownloadContent("image/jpeg", baos.toByteArray()) );
+					} else {
+						throw ruby.newArgumentError("Image file format '" + format + "' is not supported.");
+					}				
+				} catch (IOException e) {
+					throw ruby.newIOError(e.getMessage());
+				}
+			}
+			public Arity getArity() { return Arity.OPTIONAL; }
+		});
+		
 		if (block.isGiven()) {
 			final Graphics2D g2d = (Graphics2D)bi.getGraphics();
 			RubyObject g = (RubyObject)ruby.toRuby(g2d);
@@ -57,29 +88,13 @@ public class GraphicsSupport extends AbstractModule {
 				ruby.getCurrentContext(), 
 				new IRubyObject[] { g});
 		}
-		return bi;
+		return rbi;
 	}
 	
 	@ModuleMethod(arity=ModuleMethod.ARITY_NO_ARGUMENTS)
 	public Object newGeneralPath(SpringIntegratedJRubyRuntime ruby,IRubyObject self, IRubyObject[] args, Block block)
 	{
 		return new GeneralPath();
-	}
-	
-	@ModuleMethod(arity=ModuleMethod.ARITY_ONE_ARGUMENT)
-	public Object renderJpegForDownload(SpringIntegratedJRubyRuntime ruby,IRubyObject self, IRubyObject[] args, Block block) throws IOException
-	{
-		ByteArrayOutputStream baos = new ByteArrayOutputStream();
-		ImageIO.write((BufferedImage)ruby.toJava(args[0]), "jpg", baos);
-		return new DownloadContent("image/jpeg", baos.toByteArray());
-	}
-
-	@ModuleMethod(arity=ModuleMethod.ARITY_ONE_ARGUMENT)
-	public Object renderPngForDownload(SpringIntegratedJRubyRuntime ruby,IRubyObject self, IRubyObject[] args, Block block) throws IOException
-	{
-		ByteArrayOutputStream baos = new ByteArrayOutputStream();
-		ImageIO.write((BufferedImage)ruby.toJava(args[0]), "png", baos);
-		return new DownloadContent("image/png", baos.toByteArray());
 	}
 
 	@ModuleMethod(arity=ModuleMethod.ARITY_OPTIONAL)
@@ -122,8 +137,28 @@ public class GraphicsSupport extends AbstractModule {
 					RubyNumeric.int2fix(ruby.getRuntime(), height),
 					RubyNumeric.int2fix(ruby.getRuntime(), type)},
 				block);
-		return self.callMethod(ruby.getCurrentContext(), "renderPngForDownload", bi);
+		return bi.callMethod(ruby.getCurrentContext(), "download", ruby.newSymbol("png"));
 	}
+
+	@ModuleMethod(arity=ModuleMethod.ARITY_TWO_ARGUMENTS)
+	public Object generateAnimatedGif(SpringIntegratedJRubyRuntime ruby,IRubyObject self, IRubyObject[] args, Block block) throws IOException
+	{
+		AnimatedGifEncoder e = new AnimatedGifEncoder();
+		int delay = 1000;
+		int repeat = 0;
+		if (args.length > 0) delay = RubyNumeric.fix2int(args[0]);
+		if (args.length > 1) repeat = RubyNumeric.fix2int(args[1]);
+		e.setDelay(delay);
+		e.setRepeat(repeat);
+		ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		e.start(baos);
+		if (block.isGiven()) {
+			block.call(ruby.getCurrentContext(), new IRubyObject[] {ruby.toRuby(e)});
+		}
+		e.finish();
+		return new DownloadContent("image/gif", baos.toByteArray()) ;
+	}
+	
 
 	/**
 	 * 定数の登録を行う

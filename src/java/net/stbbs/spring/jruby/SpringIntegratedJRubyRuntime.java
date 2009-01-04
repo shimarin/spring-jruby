@@ -24,6 +24,7 @@ import org.jruby.RubyClass;
 import org.jruby.RubyKernel;
 import org.jruby.RubyModule;
 import org.jruby.RubyString;
+import org.jruby.RubySymbol;
 import org.jruby.exceptions.RaiseException;
 import org.jruby.javasupport.JavaEmbedUtils;
 import org.jruby.runtime.Arity;
@@ -370,6 +371,11 @@ public class SpringIntegratedJRubyRuntime {
 	public RubyString newString(String str)
 	{
 		return newUnicodeString(str);
+	}
+	
+	public RubySymbol newSymbol(String str)
+	{
+		return ruby.newSymbol(str);
 	}
 	
 	public RaiseException newArgumentError(String message)
