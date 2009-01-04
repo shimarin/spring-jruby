@@ -3,6 +3,7 @@ package net.stbbs.spring.jruby.modules;
 import java.util.Collection;
 
 import javax.sound.midi.InvalidMidiDataException;
+import javax.sound.midi.MetaMessage;
 import javax.sound.midi.MidiEvent;
 import javax.sound.midi.MidiSystem;
 import javax.sound.midi.MidiUnavailableException;
@@ -25,6 +26,7 @@ public class MIDISupport {
 	protected void parseMML(final SpringIntegratedJRubyRuntime ruby, IRubyObject self, String mml) throws InvalidMidiDataException
 	{
 		Track track = (Track)ruby.toJava(self);
+		int channel = RubyNumeric.fix2int(self.getInstanceVariable("@channel"));
 		int position = RubyNumeric.fix2int(self.getInstanceVariable("@position"));
 		int octave = RubyNumeric.fix2int(self.getInstanceVariable("@octave"));
 		int notelen = RubyNumeric.fix2int(self.getInstanceVariable("@notelen"));
@@ -92,6 +94,16 @@ public class MIDISupport {
 					t += Integer.parseInt(Character.toString(mml.charAt(i)));
 					i++;
 				}
+				if (t > 0) {
+					// テンポ変更のメッセージを作成・送信
+					long val = 60000000 / t;
+					byte byte3 = new Long(val).byteValue();
+					byte byte2 = new Long(Long.rotateRight(val, 8)).byteValue();
+					byte byte1 = new Long(Long.rotateRight(val, 16)).byteValue();
+					MetaMessage mm = new MetaMessage();
+					mm.setMessage(0x51, new byte[] {byte1, byte2, byte3}, 3);
+					track.add(new MidiEvent(mm, position));
+				}
 				continue;
 			case 'v':
 				int v = 0;
@@ -111,7 +123,7 @@ public class MIDISupport {
 					i++;
 				}
 				ShortMessage sm = new ShortMessage();
-				sm.setMessage(ShortMessage.PROGRAM_CHANGE, prg, 0);
+				sm.setMessage(ShortMessage.PROGRAM_CHANGE, channel, prg - 1, 0);
 				track.add(new MidiEvent(sm, position));
 				continue;
 			case '>':
@@ -152,7 +164,7 @@ public class MIDISupport {
 				int prevnoteno = RubyNumeric.fix2int(tie);
 				if (prevnoteno != noteno) {
 					ShortMessage sm = new ShortMessage();
-					sm.setMessage(ShortMessage.NOTE_OFF, prevnoteno, 120);
+					sm.setMessage(ShortMessage.NOTE_OFF | channel, prevnoteno, 100);
 					track.add(new MidiEvent(sm, position));
 					tie = ruby.getNil();
 					self.setInstanceVariable("@tie", tie);	// タイ終了
@@ -161,7 +173,7 @@ public class MIDISupport {
 			if (noteno > 0) {
 				if (tie == null || tie.isNil()) {	// タイ中じゃなければノートON
 					ShortMessage sm = new ShortMessage();
-					sm.setMessage(ShortMessage.NOTE_ON, noteno, 100);
+					sm.setMessage(ShortMessage.NOTE_ON | channel, noteno, 100);
 					track.add(new MidiEvent(sm, position));
 				} else {
 					tie = ruby.getNil();
@@ -175,7 +187,7 @@ public class MIDISupport {
 					i++;
 				} else {
 					ShortMessage sm = new ShortMessage();
-					sm.setMessage(ShortMessage.NOTE_OFF, noteno, 100);
+					sm.setMessage(ShortMessage.NOTE_OFF | channel, noteno, 100);
 					track.add(new MidiEvent(sm, position));
 				}
 			} else { // 休符
@@ -193,11 +205,17 @@ public class MIDISupport {
 		IRubyObject rsq = ruby.toRuby(sq);
 		rsq.getSingletonClass().defineMethod("createTrack", new Callback() {
 			public IRubyObject execute(IRubyObject self, IRubyObject[] args, Block block) {
+				int channel = 0;
+				if (args.length > 0) {
+					channel = RubyNumeric.fix2int(args[0]);
+					if (channel > 15) throw ruby.newArgumentError("Channel number must be less than 16");
+				}
 				Sequence seq = (Sequence)ruby.toJava(self);
 				IRubyObject rtr = ruby.toRuby(seq.createTrack());
 				rtr.setInstanceVariable("@position", RubyNumeric.int2fix(ruby.getRuntime(), 0));
 				rtr.setInstanceVariable("@octave", RubyNumeric.int2fix(ruby.getRuntime(), 4));
 				rtr.setInstanceVariable("@notelen", RubyNumeric.int2fix(ruby.getRuntime(), TICKS_PER_BEAT));
+				rtr.setInstanceVariable("@channel", RubyNumeric.int2fix(ruby.getRuntime(), channel));
 				rtr.getSingletonClass().defineMethod("<<", new Callback() {
 					public IRubyObject execute(IRubyObject self, IRubyObject[] args, Block block) {
 						try {
@@ -231,16 +249,11 @@ public class MIDISupport {
 		});
 		rsq.getSingletonClass().defineMethod("playSynchronous", new Callback() {
 			public IRubyObject execute(IRubyObject self, IRubyObject[] args, Block block) {
-				int tempo = 120;
-				if (args.length > 0) {
-					tempo = RubyNumeric.fix2int(args[0]);
-				}
 				Sequence seq = (Sequence)ruby.toJava(self);
 				try {
 					Sequencer sequencer = MidiSystem.getSequencer();
 					sequencer.open();
 					sequencer.setSequence(seq);
-					sequencer.setTempoInBPM(tempo);
 					sequencer.start();
 					while (sequencer.isRunning()) Thread.sleep(100);
 					sequencer.close();
