@@ -27,7 +27,7 @@ public class MIDISupport {
 		Track track = (Track)ruby.toJava(self);
 		int position = RubyNumeric.fix2int(self.getInstanceVariable("@position"));
 		int octave = RubyNumeric.fix2int(self.getInstanceVariable("@octave"));
-		int beats = RubyNumeric.fix2int(self.getInstanceVariable("@beats"));
+		int notelen = RubyNumeric.fix2int(self.getInstanceVariable("@notelen"));
 		int i = 0;
 		while (i < mml.length()) {
 			char c = mml.charAt(i);
@@ -66,6 +66,22 @@ public class MIDISupport {
 					i++;
 				}
 				octave = o;
+				self.setInstanceVariable("@octave", RubyNumeric.int2fix(ruby.getRuntime(), octave));
+				continue;
+			case 'l':
+				int l = 0;
+				i++;
+				while (i < mml.length() && Character.isDigit(mml.charAt(i))) {
+					l *= 10;
+					l += Integer.parseInt(Character.toString(mml.charAt(i)));
+					i++;
+				}
+				notelen = TICKS_PER_BEAT * 4 / l;
+				if (i < mml.length() && mml.charAt(i) == '.') {
+					notelen = notelen * 3 / 2;
+					i++;
+				}
+				self.setInstanceVariable("@notelen", RubyNumeric.int2fix(ruby.getRuntime(), notelen));
 				continue;
 			case '@':
 				int prg = 0;
@@ -78,6 +94,16 @@ public class MIDISupport {
 				ShortMessage sm = new ShortMessage();
 				sm.setMessage(ShortMessage.PROGRAM_CHANGE, prg, 0);
 				track.add(new MidiEvent(sm, position));
+				continue;
+			case '>':
+				octave++;
+				i++;
+				self.setInstanceVariable("@octave", RubyNumeric.int2fix(ruby.getRuntime(), octave));
+				continue;
+			case '<':
+				octave--;
+				i++;
+				self.setInstanceVariable("@octave", RubyNumeric.int2fix(ruby.getRuntime(), octave));
 				continue;
 			default:
 				throw ruby.newArgumentError("Invalida note char '" + c + "'");
@@ -98,22 +124,25 @@ public class MIDISupport {
 				len += Integer.parseInt(Character.toString(mml.charAt(i)));
 				i++;
 			}
-			if (len == 0) len =  beats;
+			int ticks = len == 0? notelen : TICKS_PER_BEAT * 4 / len;
+			if (i < mml.length() && mml.charAt(i) == '.') {
+				ticks = ticks * 3 / 2;
+				i++;
+			}
 			if (noteno > 0) {
 				ShortMessage sm = new ShortMessage();
 				sm.setMessage(ShortMessage.NOTE_ON, noteno, 120);
 				track.add(new MidiEvent(sm, position));
 
-				position += TICKS_PER_BEAT * 4 / len;
+				position += ticks;
 
 				sm = new ShortMessage();
 				sm.setMessage(ShortMessage.NOTE_OFF, noteno, 120);
 				track.add(new MidiEvent(sm, position));
 			} else { // 休符
-				position += TICKS_PER_BEAT * 4 / len;
+				position += ticks;
 			}
 			self.setInstanceVariable("@position", RubyNumeric.int2fix(ruby.getRuntime(), position));
-			self.setInstanceVariable("@octave", RubyNumeric.int2fix(ruby.getRuntime(), octave));
 		}
 		
 	}
@@ -129,7 +158,7 @@ public class MIDISupport {
 				IRubyObject rtr = ruby.toRuby(seq.createTrack());
 				rtr.setInstanceVariable("@position", RubyNumeric.int2fix(ruby.getRuntime(), 0));
 				rtr.setInstanceVariable("@octave", RubyNumeric.int2fix(ruby.getRuntime(), 4));
-				rtr.setInstanceVariable("@beats", RubyNumeric.int2fix(ruby.getRuntime(), 4));
+				rtr.setInstanceVariable("@notelen", RubyNumeric.int2fix(ruby.getRuntime(), TICKS_PER_BEAT));
 				rtr.getSingletonClass().defineMethod("<<", new Callback() {
 					public IRubyObject execute(IRubyObject self, IRubyObject[] args, Block block) {
 						try {
