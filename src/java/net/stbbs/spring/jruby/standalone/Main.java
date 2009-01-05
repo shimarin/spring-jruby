@@ -1,8 +1,9 @@
 package net.stbbs.spring.jruby.standalone;
-import java.awt.Desktop;
 import java.awt.GraphicsEnvironment;
 import java.io.File;
+import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.EventListener;
 import java.util.HashMap;
 import java.util.Map;
@@ -34,7 +35,7 @@ public class Main extends Server {
 	
 	static final String WEBAPP_DIR = "webapp";
 	
-	public static void main(String[] args) throws Exception {
+	public static void main(String[] args) {
 		Main me = new Main();
 		SocketConnector connector = new SocketConnector();
 		connector.setPort(8080);
@@ -80,8 +81,33 @@ public class Main extends Server {
 			frame.setVisible(true);
 		}
 
-		me.start();
-		Desktop.getDesktop().browse(new URI("http://localhost:8080/instance_eval"));
+		try {
+			me.start();
+		} catch (Exception e) {
+			e.printStackTrace();
+			System.exit(-1);
+		}
+		
+		try {
+			Class desktopClass = Class.forName("java.awt.Desktop");
+			Object desktopObject = desktopClass.getMethod("getDesktop").invoke(null);
+			URI uri = new URI("http://localhost:8080/instance_eval");
+			desktopClass.getMethod("browse").invoke(desktopObject, uri);
+		} catch (ClassNotFoundException e) {
+			// Java5
+		} catch (IllegalArgumentException e) {
+			e.printStackTrace();
+		} catch (SecurityException e) {
+			e.printStackTrace();
+		} catch (IllegalAccessException e) {
+			e.printStackTrace();
+		} catch (InvocationTargetException e) {
+			e.printStackTrace();
+		} catch (NoSuchMethodException e) {
+			e.printStackTrace();
+		} catch (URISyntaxException e) {
+			e.printStackTrace();
+		}
 	}
 
 }
