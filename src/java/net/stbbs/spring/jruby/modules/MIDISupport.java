@@ -136,6 +136,10 @@ public class MIDISupport {
 				i++;
 				self.setInstanceVariable("@octave", RubyNumeric.int2fix(ruby.getRuntime(), octave));
 				continue;
+			case ' ':
+			case '\t':
+				i++;
+				continue;
 			default:
 				throw ruby.newArgumentError("Invalida note char '" + c + "'");
 			}

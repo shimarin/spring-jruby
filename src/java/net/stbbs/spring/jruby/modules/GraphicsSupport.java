@@ -1,8 +1,10 @@
 package net.stbbs.spring.jruby.modules;
 
 import java.awt.BasicStroke;
+import java.awt.Color;
 import java.awt.Font;
 import java.awt.Graphics2D;
+import java.awt.Stroke;
 import java.awt.geom.GeneralPath;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
@@ -10,10 +12,12 @@ import java.io.IOException;
 
 import javax.imageio.ImageIO;
 
+import net.stbbs.jruby.Util;
 import net.stbbs.spring.jruby.DownloadContent;
 import net.stbbs.spring.jruby.SpringIntegratedJRubyRuntime;
 
 import org.jruby.RubyFloat;
+import org.jruby.RubyHash;
 import org.jruby.RubyModule;
 import org.jruby.RubyNumeric;
 import org.jruby.RubyObject;
@@ -82,7 +86,77 @@ public class GraphicsSupport extends AbstractModule {
 				public Arity getArity() {
 					return Arity.NO_ARGUMENTS;
 				}
-				
+			});
+			g.getSingletonClass().defineMethod("setStroke", new Callback() {
+				public IRubyObject execute(IRubyObject self, IRubyObject[] args, Block block) {
+					// 引数が足りない場合エラー
+					if (args.length < 1) {
+						throw ruby.newArgumentError("Method requires at least one argument.");
+					}
+					Object jo = ruby.toJava(args[0]);
+					if (jo instanceof Stroke) {
+						((Graphics2D)ruby.toJava(self)).setStroke((Stroke)jo);
+					} else {
+						RubyHash options = (RubyHash)args[0];
+						Double width = Util.getOptionDouble(options, "width", 1.0);
+						Integer cap = Util.getOptionInteger(options, "cap", BasicStroke.CAP_SQUARE);
+						Integer join = Util.getOptionInteger(options, "join", BasicStroke.JOIN_MITER);
+						Double miterlimit = Util.getOptionDouble(options, "miterlimit", 10.0);
+						BasicStroke bs = new BasicStroke(width.floatValue(), cap, join, miterlimit.floatValue());
+						((Graphics2D)ruby.toJava(self)).setStroke(bs);
+					}
+					return self;
+				}
+				public Arity getArity() { return Arity.ONE_ARGUMENT; }
+			});
+			g.getSingletonClass().defineMethod("setFont", new Callback() {
+				public IRubyObject execute(IRubyObject self, IRubyObject[] args, Block block) {
+					// 引数が足りない場合エラー
+					if (args.length < 1) {
+						throw ruby.newArgumentError("Method requires at least one argument.");
+					}
+					Object jo = ruby.toJava(args[0]);
+					Graphics2D g = (Graphics2D)ruby.toJava(self);
+					if (jo instanceof Font) {
+						g.setFont((Font)jo);
+					} else {
+						RubyHash options = (RubyHash)args[0];
+						String name = Util.getOptionString(options, "name");
+						Integer style = Util.getOptionInteger(options, "style", Font.PLAIN);
+						Integer size = Util.getOptionInteger(options, "size", g.getFont().getSize());
+						g.setFont(new Font(name, style, size));
+					}
+					return self;
+				}
+				public Arity getArity() { return Arity.ONE_ARGUMENT; }
+			});
+			g.getSingletonClass().defineMethod("setColor", new Callback() {
+				public IRubyObject execute(IRubyObject self, IRubyObject[] args, Block block) {
+					// 引数が足りない場合エラー
+					if (args.length < 1) {
+						throw ruby.newArgumentError("Method requires at least one argument.");
+					}
+					Object jo = ruby.toJava(args[0]);
+					Graphics2D g = (Graphics2D)ruby.toJava(self);
+					if (jo instanceof Color) {
+						g.setColor((Color)jo);
+					} else {
+						if (args.length < 3) {
+							throw ruby.newArgumentError("Method requires at least three argument(r,g,b,(a)).");
+						}
+						float rr = (float)RubyNumeric.num2dbl(args[0]);
+						float gg = (float)RubyNumeric.num2dbl(args[1]);
+						float bb = (float)RubyNumeric.num2dbl(args[2]);
+						Float aa = args.length > 3? (float)RubyNumeric.num2dbl(args[3]) : null;
+						if (aa == null) {
+							g.setColor(new Color(rr, gg, bb));
+						} else {
+							g.setColor(new Color(rr, gg, bb, aa));
+						}
+					}
+					return self;
+				}
+				public Arity getArity() { return Arity.ONE_ARGUMENT; }
 			});
 			block.call(
 				ruby.getCurrentContext(), 

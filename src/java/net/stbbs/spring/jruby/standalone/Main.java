@@ -12,17 +12,13 @@ import javax.swing.JFrame;
 
 import net.stbbs.spring.jruby.DispatcherFilter;
 import net.stbbs.spring.jruby.InstanceEvalServlet;
-import net.stbbs.spring.jruby.SpringIntegratedJRubyRuntime;
 
 import org.h2.server.web.WebServlet;
-import org.jruby.RubyClass;
 import org.mortbay.jetty.Server;
 import org.mortbay.jetty.bio.SocketConnector;
 import org.mortbay.jetty.servlet.ServletHandler;
 import org.mortbay.jetty.servlet.ServletHolder;
-import org.mortbay.jetty.servlet.ServletMapping;
 import org.mortbay.jetty.webapp.WebAppContext;
-import org.springframework.web.context.ContextLoader;
 import org.springframework.web.context.ContextLoaderListener;
 import org.springframework.web.context.request.RequestContextListener;
 
