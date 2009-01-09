@@ -47,4 +47,9 @@
 		<property name="sessionFactory" ref="sessionFactory"/> 
 	</bean>
 
+	<!-- ActiveMQ -->
+	<bean id="connectionFactory" class="org.apache.activemq.ActiveMQConnectionFactory">
+		<property name="brokerURL" value="tcp://localhost:61616"/>
+	</bean>
+
 </beans>
