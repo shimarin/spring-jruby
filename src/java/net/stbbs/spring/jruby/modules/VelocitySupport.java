@@ -18,8 +18,6 @@ import org.jruby.runtime.Block;
 import org.jruby.runtime.builtin.IRubyObject;
 import org.springframework.core.io.Resource;
 
-import sun.text.CompactShortArray.Iterator;
-
 /**
  * 
  * @author shimarin
