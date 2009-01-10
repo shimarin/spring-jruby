@@ -88,7 +88,7 @@ public class Main extends Server {
 			Class desktopClass = Class.forName("java.awt.Desktop");
 			Object desktopObject = desktopClass.getMethod("getDesktop").invoke(null);
 			URI uri = new URI("http://localhost:8080/instance_eval");
-			desktopClass.getMethod("browse").invoke(desktopObject, uri);
+			desktopClass.getMethod("browse", URI.class).invoke(desktopObject, uri);
 		} catch (ClassNotFoundException e) {
 			// Java5
 		} catch (IllegalArgumentException e) {
