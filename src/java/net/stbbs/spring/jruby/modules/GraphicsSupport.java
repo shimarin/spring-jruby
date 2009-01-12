@@ -3,6 +3,7 @@ package net.stbbs.spring.jruby.modules;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Font;
+import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Stroke;
 import java.awt.geom.GeneralPath;
@@ -28,21 +29,16 @@ import org.jruby.runtime.callback.Callback;
 
 @Module
 public class GraphicsSupport extends AbstractModule {
-	@ModuleMethod(arity=ModuleMethod.ARITY_TWO_REQUIRED)
-	public Object newBufferedImage(final SpringIntegratedJRubyRuntime ruby,IRubyObject self, IRubyObject[] args, Block block) 
+	public static IRubyObject enhanceBuffer(final SpringIntegratedJRubyRuntime ruby, final BufferedImage buf)
 	{
-		// 引数が足りない場合エラー
-		if (args.length < 2) {
-			throw ruby.newArgumentError("Method requires at least two arguments.");
-		}
-
-		int type = BufferedImage.TYPE_INT_RGB;
-		if (args.length > 2) type = RubyNumeric.num2int(args[2]);
-		BufferedImage bi = new BufferedImage(
-				RubyNumeric.num2int(args[0]),
-				RubyNumeric.num2int(args[1]),type);
-
-		IRubyObject rbi = ruby.toRuby(bi);
+		IRubyObject rbi = ruby.toRuby(buf);
+		rbi.getSingletonClass().defineMethod("getGraphics", new Callback() {
+			public IRubyObject execute(IRubyObject self, IRubyObject[] args, Block block) {
+				BufferedImage bi = (BufferedImage)ruby.toJava(self);
+				return enhanceGraphics(ruby, (Graphics2D)bi.getGraphics());
+			}
+			public Arity getArity() { return Arity.NO_ARGUMENTS; }
+		});
 		rbi.getSingletonClass().defineMethod("download", new Callback() {
 			public IRubyObject execute(IRubyObject self, IRubyObject[] args, Block block) {
 				String format = "png";
@@ -67,97 +63,122 @@ public class GraphicsSupport extends AbstractModule {
 			}
 			public Arity getArity() { return Arity.OPTIONAL; }
 		});
+		return rbi;
+	}
+	
+	public static IRubyObject enhanceGraphics(final SpringIntegratedJRubyRuntime ruby, final Graphics2D jg)
+	{
+		IRubyObject g = (IRubyObject)ruby.toRuby(jg);
+		g.getSingletonClass().defineMethod("drawGeneralPath", new Callback() {
+			public IRubyObject execute(IRubyObject self, IRubyObject[] args, Block block) {
+				GeneralPath gp = new GeneralPath();
+				if (block.isGiven()) {
+					block.call(
+						ruby.getCurrentContext(), 
+						new IRubyObject[] {ruby.toRuby(gp)});
+					jg.draw(gp);
+				}
+				return ruby.toRuby(gp);
+			}
+
+			public Arity getArity() {
+				return Arity.NO_ARGUMENTS;
+			}
+		});
+		g.getSingletonClass().defineMethod("setStroke", new Callback() {
+			public IRubyObject execute(IRubyObject self, IRubyObject[] args, Block block) {
+				// 引数が足りない場合エラー
+				if (args.length < 1) {
+					throw ruby.newArgumentError("Method requires at least one argument.");
+				}
+				Object jo = ruby.toJava(args[0]);
+				if (jo instanceof Stroke) {
+					((Graphics2D)ruby.toJava(self)).setStroke((Stroke)jo);
+				} else {
+					RubyHash options = (RubyHash)args[0];
+					Double width = Util.getOptionDouble(options, "width", 1.0);
+					Integer cap = Util.getOptionInteger(options, "cap", BasicStroke.CAP_SQUARE);
+					Integer join = Util.getOptionInteger(options, "join", BasicStroke.JOIN_MITER);
+					Double miterlimit = Util.getOptionDouble(options, "miterlimit", 10.0);
+					BasicStroke bs = new BasicStroke(width.floatValue(), cap, join, miterlimit.floatValue());
+					((Graphics2D)ruby.toJava(self)).setStroke(bs);
+				}
+				return self;
+			}
+			public Arity getArity() { return Arity.ONE_ARGUMENT; }
+		});
+		g.getSingletonClass().defineMethod("setFont", new Callback() {
+			public IRubyObject execute(IRubyObject self, IRubyObject[] args, Block block) {
+				// 引数が足りない場合エラー
+				if (args.length < 1) {
+					throw ruby.newArgumentError("Method requires at least one argument.");
+				}
+				Object jo = ruby.toJava(args[0]);
+				Graphics2D g = (Graphics2D)ruby.toJava(self);
+				if (jo instanceof Font) {
+					g.setFont((Font)jo);
+				} else {
+					RubyHash options = (RubyHash)args[0];
+					String name = Util.getOptionString(options, "name");
+					Integer style = Util.getOptionInteger(options, "style", Font.PLAIN);
+					Integer size = Util.getOptionInteger(options, "size", g.getFont().getSize());
+					g.setFont(new Font(name, style, size));
+				}
+				return self;
+			}
+			public Arity getArity() { return Arity.ONE_ARGUMENT; }
+		});
+		g.getSingletonClass().defineMethod("setColor", new Callback() {
+			public IRubyObject execute(IRubyObject self, IRubyObject[] args, Block block) {
+				// 引数が足りない場合エラー
+				if (args.length < 1) {
+					throw ruby.newArgumentError("Method requires at least one argument.");
+				}
+				Object jo = ruby.toJava(args[0]);
+				Graphics2D g = (Graphics2D)ruby.toJava(self);
+				if (jo instanceof Color) {
+					g.setColor((Color)jo);
+				} else {
+					if (args.length < 3) {
+						throw ruby.newArgumentError("Method requires at least three arguments(r,g,b,(a)).");
+					}
+					float rr = (float)RubyNumeric.num2dbl(args[0]);
+					float gg = (float)RubyNumeric.num2dbl(args[1]);
+					float bb = (float)RubyNumeric.num2dbl(args[2]);
+					Float aa = args.length > 3? (float)RubyNumeric.num2dbl(args[3]) : null;
+					if (aa == null) {
+						g.setColor(new Color(rr, gg, bb));
+					} else {
+						g.setColor(new Color(rr, gg, bb, aa));
+					}
+				}
+				return self;
+			}
+			public Arity getArity() { return Arity.ONE_ARGUMENT; }
+		});
+		return g;
+	}
+	
+	@ModuleMethod(arity=ModuleMethod.ARITY_TWO_REQUIRED)
+	public Object newBufferedImage(final SpringIntegratedJRubyRuntime ruby,IRubyObject self, IRubyObject[] args, Block block) 
+	{
+		// 引数が足りない場合エラー
+		if (args.length < 2) {
+			throw ruby.newArgumentError("Method requires at least two arguments.");
+		}
+
+		int type = BufferedImage.TYPE_INT_RGB;
+		if (args.length > 2) type = RubyNumeric.num2int(args[2]);
+		BufferedImage bi = new BufferedImage(
+				RubyNumeric.num2int(args[0]),
+				RubyNumeric.num2int(args[1]),type);
+
+		IRubyObject rbi = enhanceBuffer(ruby, bi);
 		
 		if (block.isGiven()) {
 			final Graphics2D g2d = (Graphics2D)bi.getGraphics();
-			RubyObject g = (RubyObject)ruby.toRuby(g2d);
-			g.getSingletonClass().defineMethod("drawGeneralPath", new Callback() {
-				public IRubyObject execute(IRubyObject self, IRubyObject[] args, Block block) {
-					GeneralPath gp = new GeneralPath();
-					if (block.isGiven()) {
-						block.call(
-							ruby.getCurrentContext(), 
-							new IRubyObject[] {ruby.toRuby(gp)});
-						g2d.draw(gp);
-					}
-					return ruby.toRuby(gp);
-				}
-
-				public Arity getArity() {
-					return Arity.NO_ARGUMENTS;
-				}
-			});
-			g.getSingletonClass().defineMethod("setStroke", new Callback() {
-				public IRubyObject execute(IRubyObject self, IRubyObject[] args, Block block) {
-					// 引数が足りない場合エラー
-					if (args.length < 1) {
-						throw ruby.newArgumentError("Method requires at least one argument.");
-					}
-					Object jo = ruby.toJava(args[0]);
-					if (jo instanceof Stroke) {
-						((Graphics2D)ruby.toJava(self)).setStroke((Stroke)jo);
-					} else {
-						RubyHash options = (RubyHash)args[0];
-						Double width = Util.getOptionDouble(options, "width", 1.0);
-						Integer cap = Util.getOptionInteger(options, "cap", BasicStroke.CAP_SQUARE);
-						Integer join = Util.getOptionInteger(options, "join", BasicStroke.JOIN_MITER);
-						Double miterlimit = Util.getOptionDouble(options, "miterlimit", 10.0);
-						BasicStroke bs = new BasicStroke(width.floatValue(), cap, join, miterlimit.floatValue());
-						((Graphics2D)ruby.toJava(self)).setStroke(bs);
-					}
-					return self;
-				}
-				public Arity getArity() { return Arity.ONE_ARGUMENT; }
-			});
-			g.getSingletonClass().defineMethod("setFont", new Callback() {
-				public IRubyObject execute(IRubyObject self, IRubyObject[] args, Block block) {
-					// 引数が足りない場合エラー
-					if (args.length < 1) {
-						throw ruby.newArgumentError("Method requires at least one argument.");
-					}
-					Object jo = ruby.toJava(args[0]);
-					Graphics2D g = (Graphics2D)ruby.toJava(self);
-					if (jo instanceof Font) {
-						g.setFont((Font)jo);
-					} else {
-						RubyHash options = (RubyHash)args[0];
-						String name = Util.getOptionString(options, "name");
-						Integer style = Util.getOptionInteger(options, "style", Font.PLAIN);
-						Integer size = Util.getOptionInteger(options, "size", g.getFont().getSize());
-						g.setFont(new Font(name, style, size));
-					}
-					return self;
-				}
-				public Arity getArity() { return Arity.ONE_ARGUMENT; }
-			});
-			g.getSingletonClass().defineMethod("setColor", new Callback() {
-				public IRubyObject execute(IRubyObject self, IRubyObject[] args, Block block) {
-					// 引数が足りない場合エラー
-					if (args.length < 1) {
-						throw ruby.newArgumentError("Method requires at least one argument.");
-					}
-					Object jo = ruby.toJava(args[0]);
-					Graphics2D g = (Graphics2D)ruby.toJava(self);
-					if (jo instanceof Color) {
-						g.setColor((Color)jo);
-					} else {
-						if (args.length < 3) {
-							throw ruby.newArgumentError("Method requires at least three argument(r,g,b,(a)).");
-						}
-						float rr = (float)RubyNumeric.num2dbl(args[0]);
-						float gg = (float)RubyNumeric.num2dbl(args[1]);
-						float bb = (float)RubyNumeric.num2dbl(args[2]);
-						Float aa = args.length > 3? (float)RubyNumeric.num2dbl(args[3]) : null;
-						if (aa == null) {
-							g.setColor(new Color(rr, gg, bb));
-						} else {
-							g.setColor(new Color(rr, gg, bb, aa));
-						}
-					}
-					return self;
-				}
-				public Arity getArity() { return Arity.ONE_ARGUMENT; }
-			});
+			
+			IRubyObject g = enhanceGraphics(ruby, g2d);
 			block.call(
 				ruby.getCurrentContext(), 
 				new IRubyObject[] { g});
@@ -231,6 +252,17 @@ public class GraphicsSupport extends AbstractModule {
 		}
 		e.finish();
 		return new DownloadContent("image/gif", baos.toByteArray()) ;
+	}
+	
+	@ModuleMethod(arity=ModuleMethod.ARITY_OPTIONAL)
+	public Object newGraphicsFrame(SpringIntegratedJRubyRuntime ruby,IRubyObject self, IRubyObject[] args, Block block)
+	{
+		final int type = BufferedImage.TYPE_INT_RGB;
+		int width = 512;
+		int height = 384;
+		if (args.length > 0) width = RubyNumeric.num2int(args[0]);
+		if (args.length > 1) height = RubyNumeric.num2int(args[1]);
+		return new GraphicsFrame(ruby, width, height);
 	}
 	
 
