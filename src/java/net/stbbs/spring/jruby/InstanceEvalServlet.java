@@ -1,9 +1,12 @@
 package net.stbbs.spring.jruby;
 
+import java.beans.PropertyDescriptor;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.io.PrintWriter;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.Collection;
 import java.util.Map;
 
@@ -17,6 +20,7 @@ import net.stbbs.spring.jruby.modules.ModuleException;
 
 import org.jruby.RubyClass;
 import org.jruby.RubyException;
+import org.jruby.RubyNil;
 import org.jruby.RubyObject;
 import org.jruby.RubyString;
 import org.jruby.exceptions.RaiseException;
@@ -25,6 +29,7 @@ import org.jruby.runtime.Arity;
 import org.jruby.runtime.Block;
 import org.jruby.runtime.builtin.IRubyObject;
 import org.jruby.runtime.callback.Callback;
+import org.springframework.beans.BeanUtils;
 import org.springframework.jdbc.support.rowset.SqlRowSet;
 import org.springframework.jdbc.support.rowset.SqlRowSetMetaData;
 import org.springframework.web.context.WebApplicationContext;
@@ -174,40 +179,78 @@ public class InstanceEvalServlet extends HttpServlet {
 		out.println("</table>");
 	}
 	
+	static protected void prettyPrint(PrintWriter out, Object obj)
+	{
+		if ((obj instanceof String) || (obj instanceof Number)) {
+			out.println(obj + "<br>");
+			return;
+		}
+
+		PropertyDescriptor[] props = BeanUtils.getPropertyDescriptors(obj.getClass());
+		out.println(escapeHTML( obj.toString() ) + "<br>");
+		out.println("<table border='1'>");
+		for (PropertyDescriptor pd:props) {
+			Method m = pd.getReadMethod();
+			if (m != null) {
+				out.println("<tr>");
+				try {
+					out.println("<th>" + escapeHTML(pd.getDisplayName()) + "</th><td>" + escapeHTML( obj2str(m.invoke(obj)) ) + "</td>");
+				} catch (IllegalArgumentException e) {
+				} catch (IllegalAccessException e) {
+				} catch (InvocationTargetException e) {
+				}
+				out.println("</tr>");
+			}
+		}
+		out.println("</table>");
+		//out.println(escapeHTML( obj2str(obj) ));
+	}
+	
 	static protected void printResult(PrintWriter out, SpringIntegratedJRubyRuntime ruby, 
 			Object result)
 	{
 		out.println("<h1>result</h1>");
-		if (result == null) {
+		if (result == null || result instanceof RubyNil) {
 			out.println("nil");
 			return;
 		}
 
 		if (result instanceof RubyObject) {
 			RubyObject ro = (RubyObject)result;
-			Object jo = ruby.toJava(ro);
-			if (jo instanceof SqlRowSet) {
-				printSqlRowSet(out, (SqlRowSet)jo);
-			} else if (jo instanceof TableDescription) {
-				printTableDescription(out, (TableDescription)jo);
-			} else {
-				out.println(escapeHTML(obj2str(result) ) );
-			}
+			result = ruby.toJava(ro);
+		}
+		
+		if (result instanceof RubyObject) {	// 皮をむいてもRubyObectなのでpして終わる
+			out.println(escapeHTML(obj2str(result) ) );
 			return;
 		}
 		
+		if (result instanceof SqlRowSet) {
+			printSqlRowSet(out, (SqlRowSet)result);
+			return;
+		} 
+		
+		if (result instanceof TableDescription) {
+			printTableDescription(out, (TableDescription)result);
+			return;
+		} 
+		
 		if (result instanceof Collection) {
+			out.println("Collection<br>");
 			Collection col = (Collection)result;
 			for (Object obj:col) {
-				out.println(escapeHTML(obj2str(obj)) + "<br>");
+				prettyPrint(out, obj);
+				out.println("<br>");
 			}
 			return;
 		}
 		
 		if (result.getClass().isArray()) {
 			Object[] col = (Object[])result;
+			out.println("Array<br>");
 			for (Object obj:col) {
-				out.println(escapeHTML(obj2str(obj)) + "<br>");
+				prettyPrint(out, obj);
+				out.println("<br>");
 			}
 			return;
 		}
@@ -220,9 +263,8 @@ public class InstanceEvalServlet extends HttpServlet {
 			}
 			return;
 		}
-
 		
-		out.println(escapeHTML(obj2str(result)));
+		prettyPrint(out, result);
 	}
 	
 	static protected void printException(PrintWriter out, RubyException ex) throws IOException
