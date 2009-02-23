@@ -5,8 +5,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.io.PrintWriter;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.Collection;
 import java.util.Map;
 
@@ -186,22 +188,47 @@ public class InstanceEvalServlet extends HttpServlet {
 			return;
 		}
 
+		// getterで読み出せるプロパティ全て
 		PropertyDescriptor[] props = BeanUtils.getPropertyDescriptors(obj.getClass());
+		// publicフィールド全て
+		Field[] fields = obj.getClass().getFields();
+
 		out.println(escapeHTML( obj.toString() ) + "<br>");
 		out.println("<table border='1'>");
 		for (PropertyDescriptor pd:props) {
 			Method m = pd.getReadMethod();
 			if (m != null) {
-				out.println("<tr>");
+				Object value;
 				try {
-					out.println("<th>" + escapeHTML(pd.getDisplayName()) + "</th><td>" + escapeHTML( obj2str(m.invoke(obj)) ) + "</td>");
+					value = m.invoke(obj);
 				} catch (IllegalArgumentException e) {
+					continue;
 				} catch (IllegalAccessException e) {
+					continue;
 				} catch (InvocationTargetException e) {
+					continue;
 				}
+				out.println("<tr>");
+				out.println("<th>" + escapeHTML(pd.getDisplayName()) + "</th><td>" + escapeHTML( obj2str(value))  + "</td>");
 				out.println("</tr>");
 			}
 		}
+		for (Field f:fields) {
+			if ((f.getModifiers() & Modifier.PUBLIC) > 0) {
+				Object value;
+				try {
+					value = f.get(obj);
+				} catch (IllegalArgumentException e1) {
+					continue;
+				} catch (IllegalAccessException e1) {
+					continue;
+				}
+				out.println("<tr>");
+				out.println("<th>" + escapeHTML(f.getName()) + "</th><td>" + escapeHTML( obj2str(value) ) + "</td>");
+				out.println("</tr>");
+			}
+		}
+		
 		out.println("</table>");
 		//out.println(escapeHTML( obj2str(obj) ));
 	}
@@ -236,8 +263,8 @@ public class InstanceEvalServlet extends HttpServlet {
 		} 
 		
 		if (result instanceof Collection) {
-			out.println("Collection<br>");
 			Collection col = (Collection)result;
+			out.println("Collection(count=" + col.size() + ")<br>");
 			for (Object obj:col) {
 				prettyPrint(out, obj);
 				out.println("<br>");
@@ -247,7 +274,7 @@ public class InstanceEvalServlet extends HttpServlet {
 		
 		if (result.getClass().isArray()) {
 			Object[] col = (Object[])result;
-			out.println("Array<br>");
+			out.println("Array(count=" + col.length + ")<br>");
 			for (Object obj:col) {
 				prettyPrint(out, obj);
 				out.println("<br>");

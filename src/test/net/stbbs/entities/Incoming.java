@@ -21,8 +21,5 @@ public class Incoming {
 	@Column(name="method") public int method;
 	@Column(name="comments") public String comments;
 
-	public Incoming(Map<String, Object> row2) {
-	}
-
 
 }
