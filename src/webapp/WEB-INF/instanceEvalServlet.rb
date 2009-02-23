@@ -1,10 +1,10 @@
-include TransactionSupport
-include SQLMonitor
-include HibernateSupport
-include MailSupport
-include VelocitySupport
-include GraphicsSupport
-include DbUnitSupport
-include MVCSupport
-include POISupport
-include MIDISupport
+include TransactionSupport if defined? TransactionSupport
+include SQLMonitor if defined? SQLMonitor
+include HibernateSupport if defined? HibernateSupport
+include MailSupport if defined? MailSupport
+include VelocitySupport if defined? VelocitySupport
+include GraphicsSupport if defined? GraphicsSupport
+include DbUnitSupport if defined? DbUnitSupport
+include MVCSupport if defined? MVCSupport
+include POISupport if defined? POISupport
+include MIDISupport if defined? MIDISupport

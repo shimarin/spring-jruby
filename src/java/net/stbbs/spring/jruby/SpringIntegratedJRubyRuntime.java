@@ -332,7 +332,7 @@ public class SpringIntegratedJRubyRuntime {
 		defineModule("net.stbbs.spring.jruby.modules.MVCSupport");
 		ClassLoader cl = getClass().getClassLoader();
 		
-		if (ClassUtils.isPresent("net.stbbs.spring.dbunit.TransactionAwareDataSourceDatabaseTester", cl)) {
+		if (ClassUtils.isPresent("org.dbunit.IDatabaseTester", cl)) {
 			defineModule("net.stbbs.spring.jruby.modules.DbUnitSupport");
 		}
 		
@@ -343,7 +343,7 @@ public class SpringIntegratedJRubyRuntime {
 		if (ClassUtils.isPresent("javax.mail.internet.MimeMessage", cl)) {
 			defineModule("net.stbbs.spring.jruby.modules.MailSupport");
 		}
-		if (ClassUtils.isPresent("org.hibernate.SessionFactory", cl)) {
+		if (ClassUtils.isPresent("org.hibernate.SessionFactory", cl) && ClassUtils.isPresent("org.hibernate.cfg.AnnotationConfiguration", cl)) {
 			defineModule("net.stbbs.spring.jruby.modules.HibernateSupport");
 		}
 		if (ClassUtils.isPresent("javax.persistence.EntityManagerFactory", cl)) {

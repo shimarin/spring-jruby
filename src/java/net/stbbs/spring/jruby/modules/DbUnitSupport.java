@@ -2,23 +2,76 @@ package net.stbbs.spring.jruby.modules;
 
 import java.io.File;
 import java.io.InputStream;
+import java.sql.Connection;
 
 import javax.sql.DataSource;
 
-import net.stbbs.spring.dbunit.TransactionAwareDataSourceDatabaseTester;
 import net.stbbs.spring.jruby.SpringIntegratedJRubyRuntime;
 
+import org.dbunit.AbstractDatabaseTester;
 import org.dbunit.IDatabaseTester;
+import org.dbunit.database.DatabaseConfig;
+import org.dbunit.database.DatabaseConnection;
 import org.dbunit.database.IDatabaseConnection;
 import org.dbunit.dataset.IDataSet;
 import org.dbunit.dataset.excel.XlsDataSet;
+import org.dbunit.ext.db2.Db2Connection;
+import org.dbunit.ext.h2.H2Connection;
+import org.dbunit.ext.hsqldb.HsqldbConnection;
+import org.dbunit.ext.mssql.MsSqlConnection;
+import org.dbunit.ext.mysql.MySqlConnection;
+import org.dbunit.ext.oracle.OracleConnection;
 import org.dbunit.operation.DatabaseOperation;
 import org.jruby.runtime.Block;
 import org.jruby.runtime.builtin.IRubyObject;
 import org.springframework.core.io.Resource;
+import org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy;
 
 @Module
 public class DbUnitSupport {
+	static class TransactionAwareDataSourceDatabaseTester extends AbstractDatabaseTester {
+		private TransactionAwareDataSourceProxy dataSource;
+
+		public TransactionAwareDataSourceDatabaseTester( DataSource dataSource )
+		{
+			super();
+			if (dataSource instanceof TransactionAwareDataSourceProxy) {
+				this.dataSource = (TransactionAwareDataSourceProxy)dataSource;
+			} else {
+				this.dataSource = new TransactionAwareDataSourceProxy(dataSource);
+			}
+		}
+
+		public IDatabaseConnection getConnection() throws Exception {
+			String dataSourceType = dataSource.getTargetDataSource().getClass().getName();
+			Connection con = dataSource.getConnection();
+			String databaseProductName = con.getMetaData().getDatabaseProductName();
+			
+			if ("H2".equals(databaseProductName)) {
+				IDatabaseConnection con2 = new H2Connection(con, getSchema());
+				con2.getConfig().setProperty(DatabaseConfig.PROPERTY_ESCAPE_PATTERN, "\"?\"");
+				return con2;
+			} else if ("com.mysql.jdbc.jdbc2.optional.MysqlDataSource".equals(dataSourceType)) {
+				IDatabaseConnection con2 = new MySqlConnection(con, getSchema());
+				con2.getConfig().setProperty(DatabaseConfig.PROPERTY_ESCAPE_PATTERN, "`?`");
+				return con2;
+			} else if ("com.ibm.db2.jcc.DB2SimpleDataSource".equals(dataSourceType)) {
+				// http://www-01.ibm.com/software/data/db2/express/download.html
+				return new Db2Connection(con, getSchema());
+			} else if ("org.hsqldb.jdbc.jdbcDataSource".equals(dataSourceType)) {
+				return new HsqldbConnection(con, getSchema());
+			} else if ("com.microsoft.sqlserver.jdbc.SQLServerDataSource".equals(dataSourceType)) {
+				IDatabaseConnection con2 = new MsSqlConnection(con, getSchema());
+				con2.getConfig().setProperty(DatabaseConfig.PROPERTY_ESCAPE_PATTERN, "[?]");
+				return con2;
+			} else if ("oracle.jdbc.pool.OracleDataSource".equals(dataSourceType)) {
+				return new OracleConnection(con, getSchema());
+			} 
+			// else
+			return new DatabaseConnection( con, getSchema() );
+		}
+	}
+	
 	protected DataSource getDataSource(SpringIntegratedJRubyRuntime ruby, IRubyObject self)
 	{
 		return ruby.getComponent(self, "dataSource");
