@@ -455,6 +455,34 @@ public class Util {
 	}
 
 	/**
+	 * Rubyの {:hoge=>1,:honya=>2} みたいのを Javaの Map<String,IRubyObject>に変換する
+	 * @param hash
+	 * @return
+	 */
+	static public Map<String,IRubyObject> convertRubyHash(RubyHash hash)
+	{
+		if (hash == null) return null;
+		Ruby runtime = hash.getRuntime();
+		Map<String,IRubyObject> result = new HashMap<String,IRubyObject>();
+		RubyArray keys = hash.keys();
+		for (int i = 0; i < keys.getLength(); i++) {
+			IRubyObject key = keys.at(RubyNumeric.int2fix(runtime, i));
+			IRubyObject value = hash.fastARef(key);
+			result.put(key.asString().getUnicodeValue(), value);
+		}
+		return result;
+	}
+	
+	static public void setValueToBean(Object obj, RubyHash hash)
+	{
+		Ruby runtime = hash.getRuntime();
+		IRubyObject target = JavaEmbedUtils.javaToRuby(runtime, obj);
+		for (Map.Entry<String, IRubyObject> entry:Util.convertRubyHash(hash).entrySet() ) {
+			target.callMethod(runtime.getCurrentContext(), entry.getKey() + "=", entry.getValue());
+		}
+	}
+	
+	/**
 	 * ランタイムの初期化を行う
 	 * @return
 	 */

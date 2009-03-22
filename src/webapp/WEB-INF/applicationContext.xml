@@ -30,6 +30,12 @@
 		<property name="schemaUpdate" value="true"/>
 		<property name="annotatedClasses">
 			<list>
+				<value>example.Address</value>
+				<value>example.Product</value>
+				<value>example.Document</value>
+				<value>example.Order</value>
+				<value>example.Position</value>
+				<value>example.Task</value>
 			</list>
 		</property>
 		<property name="hibernateProperties">
