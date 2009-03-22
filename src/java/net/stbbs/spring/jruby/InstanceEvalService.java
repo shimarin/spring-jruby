@@ -140,7 +140,7 @@ public class InstanceEvalService {
 		out.println("<h3>Table: " + escapeHTML(td.getTableName()) + "</h3>");
 		out.println("<table border='1'>");
 		out.println("<tr><th>name</th><th>type</th><th>precision</th></tr>");
-		for (ColumnDescription col:td.getColumns()) {
+		for (TableDescription.ColumnDescription col:td.getColumns()) {
 			out.println("<tr>");
 			out.println("<td>" + escapeHTML(col.getName()) + "</td>");
 			out.println("<td>" + escapeHTML(col.getType()) + "</td>");
