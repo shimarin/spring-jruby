@@ -8,12 +8,14 @@ import java.io.OutputStreamWriter;
 import java.io.StringWriter;
 import java.util.Map;
 
-import net.stbbs.spring.jruby.DownloadContent;
-import net.stbbs.spring.jruby.SpringIntegratedJRubyRuntime;
+import net.stbbs.spring.jruby.modules.DownloadSupport.DownloadContent;
 
 import org.apache.velocity.VelocityContext;
 import org.apache.velocity.app.Velocity;
 import org.apache.velocity.context.Context;
+import org.jruby.Ruby;
+import org.jruby.anno.JRubyMethod;
+import org.jruby.javasupport.JavaEmbedUtils;
 import org.jruby.runtime.Block;
 import org.jruby.runtime.builtin.IRubyObject;
 import org.springframework.core.io.Resource;
@@ -23,15 +25,30 @@ import org.springframework.core.io.Resource;
  * @author shimarin
  *
  */
-@Module
 public class VelocitySupport {
-
-	@ModuleMethod(arity=ModuleMethod.ARITY_ONE_ARGUMENT)
-	public Object page(SpringIntegratedJRubyRuntime ruby, IRubyObject self, IRubyObject[] args, Block block) throws IOException
+	
+	private Ruby runtime;
+	private IRubyObject self;
+	
+	public VelocitySupport(Ruby runtime, IRubyObject self)
 	{
+		this.runtime = runtime;
+		this.self = self;
+	}
+
+	protected Resource getResource(IRubyObject resourceName)
+	{
+		return (Resource)self.callMethod(runtime.getCurrentContext(), "getResource", new IRubyObject[] {resourceName.asString()});
+		
+	}
+	
+	@JRubyMethod(required=1)
+	public DownloadContent page(IRubyObject self, IRubyObject[] args, Block block) throws IOException
+	{
+		Ruby runtime = self.getRuntime();
 		// 引数が足りない場合エラー
 		if (args.length < 1) {
-			throw ruby.newArgumentError("Method requires at least one argument.");
+			throw runtime.newArgumentError("Method requires at least one argument.");
 		}
 
 		VelocityContext ctx = new VelocityContext();
@@ -46,18 +63,18 @@ public class VelocitySupport {
     		}
     		Object value = entry.getValue();
     		if (value instanceof IRubyObject) {
-    			value = ruby.toJava((IRubyObject)value);
+    			value = JavaEmbedUtils.rubyToJava(runtime, (IRubyObject)value, null);
     		}
     		ctx.put(strKey, value);
 		}
 
 		// Velocityテンプレートをロード
 		Resource res;
-		Object jo = ruby.toJava(args[0]);
+		Object jo = JavaEmbedUtils.rubyToJava(runtime, args[0], null);
 		if (jo instanceof Resource) {
 			res = (Resource)jo;
 		} else {
-			res = ruby.getResource(args[0].asString().getUnicodeValue());
+			res = getResource(args[0]);
 		}
 		
 		ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -73,32 +90,30 @@ public class VelocitySupport {
 			if (is != null) is.close();
 		}
 		writer.close();
-		DownloadContent dl = new DownloadContent("text/html;charset=UTF-8", baos.toByteArray());
-		return ruby.toRuby(dl);
+		return new DownloadContent("text/html;charset=UTF-8", baos.toByteArray());
 	}
 	
-	@ModuleMethod(arity=ModuleMethod.ARITY_NO_ARGUMENTS)
-	public IRubyObject createVelocityContext(SpringIntegratedJRubyRuntime ruby, IRubyObject self, IRubyObject[] args, Block block)
+	@JRubyMethod
+	public VelocityContext createVelocityContext(IRubyObject self, IRubyObject[] args, Block block)
 	{
-		return ruby.toRuby(new VelocityContext());
+		return new VelocityContext();
 	}
 	
-	@ModuleMethod(arity=ModuleMethod.ARITY_TWO_ARGUMENTS)
-	public IRubyObject evaluateVelocity(SpringIntegratedJRubyRuntime ruby, IRubyObject self, IRubyObject[] args, Block block) throws IOException
+	@JRubyMethod(required=2)
+	public String evaluateVelocity(IRubyObject self, IRubyObject[] args, Block block) throws IOException
 	{
 		 StringWriter writer = new StringWriter();
-		 Context context = (Context)ruby.toJava(args[0]);
-		 String template = args[1].asString().getUnicodeValue();
+		 Context context = (Context)JavaEmbedUtils.rubyToJava(runtime, args[0], null);
 		 InputStream is = null;
 		 try {
-			 is = ruby.getResource(template).getInputStream();
+			 is = getResource(args[1]).getInputStream();
 			 InputStreamReader isr = new InputStreamReader(is, "UTF-8");
-			 Velocity.evaluate(context, writer, template, isr);
+			 Velocity.evaluate(context, writer, args[1].asString().getUnicodeValue(), isr);
 			 isr.close();
 		 }
 		 finally {
 			 if (is != null) is.close();
 		 }
-		 return ruby.newUnicodeString(writer.toString());
+		 return writer.toString();
 	}
 }

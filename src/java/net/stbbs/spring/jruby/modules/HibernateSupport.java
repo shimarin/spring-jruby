@@ -1,13 +1,18 @@
 package net.stbbs.spring.jruby.modules;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Set;
+import java.util.jar.JarEntry;
+import java.util.jar.JarInputStream;
 
+import javax.persistence.Entity;
 import javax.persistence.Table;
-import javax.sql.DataSource;
-
-import net.stbbs.spring.jruby.SpringIntegratedJRubyRuntime;
 
 import org.hibernate.MappingException;
 import org.hibernate.Session;
@@ -16,32 +21,60 @@ import org.hibernate.cfg.AnnotationConfiguration;
 import org.hibernate.cfg.Settings;
 import org.hibernate.impl.SessionFactoryImpl;
 import org.hibernate.tool.hbm2ddl.SchemaUpdate;
+import org.jruby.Ruby;
 import org.jruby.RubyArray;
+import org.jruby.RubyClass;
+import org.jruby.RubyHash;
+import org.jruby.RubyModule;
+import org.jruby.RubyString;
+import org.jruby.anno.JRubyMethod;
+import org.jruby.javasupport.JavaEmbedUtils;
+import org.jruby.runtime.Arity;
 import org.jruby.runtime.Block;
 import org.jruby.runtime.builtin.IRubyObject;
+import org.jruby.runtime.callback.Callback;
+import org.springframework.core.io.Resource;
 import org.springframework.jdbc.BadSqlGrammarException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-public class HibernateSupport {
+public class HibernateSupport extends DataSourceSupport {
 
-	protected DataSource getDataSource(SpringIntegratedJRubyRuntime ruby, IRubyObject self)
+	public HibernateSupport(Ruby runtime, IRubyObject self)
 	{
-		return ruby.getComponent(self, "dataSource");
-	}
-
-	protected SessionFactory getSessionFactory(SpringIntegratedJRubyRuntime ruby, IRubyObject self)
-	{
-		return ruby.getComponent(self, "sessionFactory");
+		super(runtime, self);
 	}
 	
-	@ModuleMethod(arity=ModuleMethod.ARITY_NO_ARGUMENTS)
-	protected Session getCurrentSession(SpringIntegratedJRubyRuntime ruby,IRubyObject self)
+	protected synchronized SessionFactory getSessionFactory()
 	{
-		return getSessionFactory(ruby, self).getCurrentSession();
+		IRubyObject c = self.callMethod(runtime.getCurrentContext(), "eval", RubyString.newUnicodeString(runtime, "sessionFactory"));
+		return (SessionFactory)JavaEmbedUtils.rubyToJava(runtime, c, SessionFactory.class);
 	}
 	
-	public IRubyObject currentSession(SpringIntegratedJRubyRuntime ruby,IRubyObject self, IRubyObject[] args, Block block) {
-		return ruby.toRuby(getCurrentSession(ruby, self));
+	protected Session getCurrentSession()
+	{
+		return getSessionFactory().getCurrentSession();
+	}
+	
+	@JRubyMethod
+	public Session currentSession(IRubyObject self, IRubyObject[] args, Block block) {
+		return getCurrentSession();
+	}
+
+	@JRubyMethod(required=1)
+	static public void enhanceEntityClasses(IRubyObject self, IRubyObject[] args, Block block)
+	{
+		Ruby runtime = self.getRuntime();
+		SessionFactory sessionFactory;
+		if (args.length < 1) {
+			sessionFactory = 
+				(SessionFactory)
+				runtime.getModule("ApplicationContextSupport").callMethod(runtime.getCurrentContext(), "applicationContext")
+				.callMethod(runtime.getCurrentContext(), "sessionFactory");
+		} else {
+			sessionFactory = (SessionFactory)JavaEmbedUtils.rubyToJava(runtime, args[0], SessionFactory.class);
+		}
+				// TBD
+		// sessionFactoryに登録されているエンティティクラス全てをエンハンスする
 	}
 
 	/*
@@ -153,9 +186,9 @@ public class HibernateSupport {
 		});
 	}
 */
-	protected Collection<Class> anArgToClasses(SpringIntegratedJRubyRuntime ruby, IRubyObject arg)
+	protected Collection<Class> anArgToClasses(IRubyObject arg)
 	{
-		Object jo = ruby.toJava(arg);
+		Object jo = toJava(arg);
 		String className = null;
 		Collection<Class> classes = new ArrayList<Class>();
 		try {
@@ -178,45 +211,67 @@ public class HibernateSupport {
 				classes.add(Class.forName(className));
 			}
 		} catch (MappingException e) {
-			throw ruby.newArgumentError("Class '" + className + "' couldn't load.");
+			throw runtime.newArgumentError("Class '" + className + "' couldn't load.");
 		} catch (ClassNotFoundException e) {
-			throw ruby.newArgumentError("Class '" + className + "' couldn't load.");
+			throw runtime.newArgumentError("Class '" + className + "' couldn't load.");
 		}
 		return classes;
 	}
 
-	@ModuleMethod(arity=ModuleMethod.ARITY_ONE_REQUIRED)
-	public IRubyObject schemaUpdate(SpringIntegratedJRubyRuntime ruby,IRubyObject self, IRubyObject[] args, Block block) {
+	@JRubyMethod(required=1,optional=1)
+	public IRubyObject schemaUpdate(IRubyObject self, IRubyObject[] args, Block block) throws IOException, ClassNotFoundException {
 		// 引数が足りない場合エラー
 		if (args.length < 1) {
 			throw self.getRuntime().newArgumentError("Method requires at least one argument.");
 		}
 		
-		Collection<Class> classes = this.anArgToClasses(ruby, args[0]);
+		Collection<Class> classes;
+		Object firstArg = JavaEmbedUtils.rubyToJava(runtime, args[0], null); 
+		if (firstArg instanceof Resource) {// jarとみなす
+			classes = new HashSet<Class>();
+			JarClassLoader jcl = new JarClassLoader((Resource)firstArg);
+			for (String className:jcl.getAllClassNames()) {
+				Class clazz = Class.forName(className, true, jcl);
+				if (clazz.getAnnotation(Entity.class) != null) classes.add(clazz);
+			}
+		} else {
+			classes = this.anArgToClasses(args[0]);
+		}
 	
 		AnnotationConfiguration ac = new AnnotationConfiguration();
-		Settings settings = ((SessionFactoryImpl)getSessionFactory(ruby, self)).getSettings();
+		Settings settings = ((SessionFactoryImpl)getSessionFactory()).getSettings();
+		RubyArray tableNames = runtime.newArray();
 		for (Class c:classes) {
+			Table t = (Table) c.getAnnotation(Table.class);
+			if (t != null) {
+				String tableName = t.name();
+				if ("".equals(tableName)) {
+					tableName = c.getName();
+				}
+				tableNames.add(tableName);
+			} else {
+				tableNames.add(c.getName());
+			}
 			ac.addAnnotatedClass(c);
 		}
 		SchemaUpdate su = new SchemaUpdate(ac, settings);
 		su.execute(true, true);
 
-		return ruby.getNil();
+		return tableNames;
 	}
 
-	@ModuleMethod(arity=ModuleMethod.ARITY_ONE_REQUIRED)
-	public IRubyObject schemaReplace(SpringIntegratedJRubyRuntime ruby,IRubyObject self, IRubyObject[] args, Block block) {
+	@JRubyMethod(required=1,optional=1)
+	public IRubyObject schemaReplace(IRubyObject self, IRubyObject[] args, Block block) {
 		// 引数が足りない場合エラー
 		if (args.length < 1) {
 			throw self.getRuntime().newArgumentError("Method requires at least one argument.");
 		}
 		
-		Collection<Class> classes = this.anArgToClasses(ruby, args[0]);
+		Collection<Class> classes = this.anArgToClasses(args[0]);
 
 		AnnotationConfiguration ac = new AnnotationConfiguration();
-		Settings settings = ((SessionFactoryImpl)getSessionFactory(ruby, self)).getSettings();
-		JdbcTemplate jt = new JdbcTemplate(getDataSource(ruby, self));
+		Settings settings = ((SessionFactoryImpl)getSessionFactory()).getSettings();
+		JdbcTemplate jt = new JdbcTemplate(getDataSource());
 		for (Class c:classes) {
 			Table t = (Table)c.getAnnotation(Table.class);
 			if (t != null) {
@@ -232,6 +287,69 @@ public class HibernateSupport {
 		SchemaUpdate su = new SchemaUpdate(ac, settings);
 		su.execute(true, true);
 
-		return ruby.getNil();
+		return runtime.getNil();
+	}
+	
+	protected static class JarClassLoader extends ClassLoader {
+		private Resource jar;
+		private static final int BUFFER_SIZE = 1024;
+
+		public JarClassLoader(Resource jar)
+		{
+			this.jar = jar;
+		}
+		protected Class findClass(String name) throws ClassNotFoundException {
+			
+			String nameInJarFile = name.replace(".", "/") + ".class";
+			
+			try {
+				InputStream is = jar.getInputStream();
+				try {
+					JarInputStream ji = new JarInputStream(is);
+					JarEntry je;
+					while ((je = ji.getNextJarEntry()) != null) {
+						if (je.getName().equals(nameInJarFile)) continue;
+						// else
+						byte[] data = read(ji);
+						return defineClass(name, data, 0, data.length);
+					}
+					ji.close();
+				}
+				finally {
+					is.close();
+				}
+			}
+			catch (IOException ex) {
+				throw new ClassNotFoundException(ex.getMessage());
+			}
+			return null;
+		}
+		public Collection<String> getAllClassNames() throws IOException
+		{
+			InputStream is = jar.getInputStream();
+			Set<String> results = new HashSet<String>();
+			try {
+				JarInputStream ji = new JarInputStream(is);
+				JarEntry je;
+				while ((je = ji.getNextJarEntry()) != null) {
+					if (je.getName().endsWith(".class")) {
+						results.add(je.getName().replace("/",".").replaceFirst("\\.class$", ""));
+					}
+				}
+				ji.close();
+			}
+			finally {
+				is.close();
+			}
+			return results;
+		}
+		private static byte[] read(InputStream in) throws IOException {
+			ByteArrayOutputStream out = new ByteArrayOutputStream();
+			byte[] buf = new byte[BUFFER_SIZE];
+			for (int readBytes = in.read(buf); readBytes != -1; readBytes = in.read(buf)) {
+				out.write(buf, 0, readBytes);
+			}
+			return out.toByteArray();
+		}
 	}
 }

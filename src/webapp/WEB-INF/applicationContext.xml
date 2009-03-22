@@ -17,6 +17,11 @@
 	<bean name="dataSource" class="org.h2.jdbcx.JdbcDataSource">
 		<property name="URL" value="jdbc:h2:mem:h2;DB_CLOSE_DELAY=-1"/>
 	</bean>
+	
+	<bean name="remoteDataSource" class="org.springframework.jdbc.datasource.DriverManagerDataSource">
+		<property name="driverClassName" value="de.simplicit.vjdbc.VirtualDriver"/>
+		<property name="url" value="jdbc:vjdbc:servlet:https://vjdbc.stbbs.net/vjdbc,ut3N3fp6ep77u7pa"/>
+	</bean>
 
 	<bean id="mailSender" class="org.springframework.mail.javamail.JavaMailSenderImpl">
 	</bean>
@@ -28,13 +33,13 @@
 		class="org.springframework.orm.hibernate3.annotation.AnnotationSessionFactoryBean">
 		<property name="dataSource" ref="dataSource"/>
 		<property name="schemaUpdate" value="true"/>
-<!--
 		<property name="annotatedClasses">
-			<bean class="net.stbbs.hibernate.spring.AnnotatedEntityListFactoryBean">
-				<property name="package" value="net.stbbs.entities"/>
-			</bean>
+			<list>
+				<value>net.stbbs.example.Customer</value>
+				<value>net.stbbs.example.Order</value>
+			</list>
 		</property>
--->		<property name="hibernateProperties">
+		<property name="hibernateProperties">
 			<props>
 				<prop key="hibernate.dialect">org.hibernate.dialect.H2Dialect</prop>
 				<prop key="hibernate.show_sql">true</prop>
@@ -45,6 +50,10 @@
 	<!-- Transaction manager for the Hibernate SessionFactory. --> 
 	<bean id="transactionManager" class="org.springframework.orm.hibernate3.HibernateTransactionManager"> 
 		<property name="sessionFactory" ref="sessionFactory"/> 
+	</bean>
+
+	<bean id="remoteTransactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager"> 
+		<property name="dataSource" ref="remoteDataSource"/> 
 	</bean>
 
 	<!-- ActiveMQ -->

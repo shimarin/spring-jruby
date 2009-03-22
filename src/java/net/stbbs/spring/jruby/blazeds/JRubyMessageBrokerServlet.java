@@ -14,10 +14,12 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import net.stbbs.spring.jruby.JRubyRuntimeListener;
 import net.stbbs.spring.jruby.modules.BlazeDSSupport;
 
-import org.springframework.context.ApplicationContext;
-import org.springframework.web.context.support.WebApplicationContextUtils;
+import org.jruby.RubyClass;
+import org.jruby.RubyHash;
+import org.jruby.runtime.builtin.IRubyObject;
 
 import edu.emory.mathcs.backport.java.util.concurrent.ConcurrentHashMap;
 import flex.messaging.Destination;
@@ -46,19 +48,39 @@ import flex.messaging.services.Service;
 import flex.messaging.util.ExceptionUtil;
 import flex.messaging.util.RedeployManager;
 
+
+/**
+ * 
+ * @author shimarin
+ *
+ * flex-messaging-common.jar
+ * flex-messaging-remoting.jar
+ * flex-messaging-core.jar
+ */
 public class JRubyMessageBrokerServlet  extends HttpServlet {
     public static final String LOG_CATEGORY_STARTUP_BROKER = LogCategories.STARTUP_MESSAGEBROKER;
     public static final String AMF_CHANNELID = "my-amf";
     public static final String POLLING_AMF_CHANNELID = "my-polling-amf";
+    
+    
 
     private MessageBroker broker;
-    private ApplicationContext wac;
+    //private ApplicationContext wac;
+	protected IRubyObject applicationContext;
     
     public void init(ServletConfig servletConfig)
     throws ServletException, UnavailableException
     {
     	super.init(servletConfig);
-		wac = WebApplicationContextUtils.getRequiredWebApplicationContext(servletConfig.getServletContext());
+
+		applicationContext = JRubyRuntimeListener.getApplicationContextObject(getServletContext());
+		if (applicationContext == null) {
+			try {
+				applicationContext = JRubyRuntimeListener.initializeRuntime(this.getServletContext());
+			} catch (IOException e) {
+				throw new ServletException(e);
+			}
+		}
 
     	// Set the servlet config as thread local
         FlexContext.setThreadLocalObjects(null, null, null, null, null, servletConfig);
@@ -106,6 +128,7 @@ public class JRubyMessageBrokerServlet  extends HttpServlet {
         {
             // On any unhandled exception destroy the broker, log it and rethrow.
             destroy();
+            
             System.err.println("**** MessageBrokerServlet failed to initialize due to runtime exception: " + ExceptionUtil.exceptionToString(t));
             throw new UnavailableException(t.getMessage());
         }
@@ -142,14 +165,22 @@ public class JRubyMessageBrokerServlet  extends HttpServlet {
         broker.setRedeployManager(redeployManager);
 
 		ChannelSettings csNonPolling = new ChannelSettings(AMF_CHANNELID);
-		csNonPolling.setUri("http://{server.name}:{server.port}/{context.root}/jrubyamf/amf");
+		String endpointURL = BlazeDSSupport.ENDPOINT_URL_BASE + BlazeDSSupport.DEFAULT_REMOTING_ENDPOINT_URL;
+		RubyClass proxyClass = (RubyClass)applicationContext.callMethod(applicationContext.getRuntime().getCurrentContext(), "getProxyClass");
+		if (proxyClass.isClassVarDefined(BlazeDSSupport.REMOTING_ENDPOINT_URL_CLASSVER_NAME)) {
+			endpointURL = proxyClass.getClassVar(BlazeDSSupport.REMOTING_ENDPOINT_URL_CLASSVER_NAME).asString().getUnicodeValue();
+			if (!endpointURL.startsWith("http://") && !endpointURL.startsWith("https://")) {
+				endpointURL = BlazeDSSupport.ENDPOINT_URL_BASE + endpointURL;
+			}
+		}
+		csNonPolling.setUri(endpointURL);
 		csNonPolling.setClientType("mx.messaging.channels.AMFChannel");
 		csNonPolling.setEndpointType("flex.messaging.endpoints.AMFEndpoint");
 		csNonPolling.addProperty("polling-enabled", "false");
         createEndpoints(broker, csNonPolling);
 
 		ChannelSettings csPolling = new ChannelSettings(POLLING_AMF_CHANNELID);
-		csPolling.setUri("http://{server.name}:{server.port}/{context.root}/jrubyamf/amfpolling");
+		csPolling.setUri("http://{server.name}:{server.port}/{context.root}/rubymessagebroker/amfpolling");
 		csPolling.setClientType("mx.messaging.channels.AMFChannel");
 		csPolling.setEndpointType("flex.messaging.endpoints.AMFEndpoint");
 		csPolling.addProperty("polling-enabled", "false");
@@ -175,8 +206,8 @@ public class JRubyMessageBrokerServlet  extends HttpServlet {
        service.addDefaultChannel(AMF_CHANNELID);
 
        // Adapter Definitions
-       service.registerAdapter("spring-jruby", "net.stbbs.spring.jruby.blazeds.SpringJRubyAdapter");
-       service.setDefaultAdapter("spring-jruby");
+       service.registerAdapter("jruby", "net.stbbs.spring.jruby.blazeds.JRubyAdapter");
+       service.setDefaultAdapter("jruby");
        
        // ポーリングサービス
        // Create the Service
@@ -190,15 +221,21 @@ public class JRubyMessageBrokerServlet  extends HttpServlet {
        msgService.setDefaultAdapter("actionscript");
 
        // Destinations
-		Map all = wac.getBeansOfType(Object.class);
-		for (Object objEntry : all.entrySet()) {
-			Map.Entry entry = (Map.Entry)objEntry;
-			Class clazz = entry.getValue().getClass();
-			Destination dst = (Destination)clazz.getAnnotation(Destination.class);
-			if (dst == null) continue;
-			Destination destination = BlazeDSSupport.createDestination((String)entry.getKey());
-			destination.addExtraProperty("bean", entry.getValue());
-		}
+       RubyHash destinations;
+       if (proxyClass.isClassVarDefined(BlazeDSSupport.DESTINATION_CLASSVAR_NAME)) {
+    	   destinations = (RubyHash)proxyClass.getClassVar(BlazeDSSupport.DESTINATION_CLASSVAR_NAME);
+       } else {
+    	   destinations = RubyHash.newHash(proxyClass.getRuntime());
+    	   // TODO: オートスキャン
+       }
+
+       for (Object objEntry : destinations.entrySet()) {
+    	   Map.Entry entry = (Map.Entry)objEntry;
+    	   String destinationId = ((IRubyObject)entry.getKey()).asString().getUnicodeValue();
+    	   Destination dest = service.createDestination(destinationId);
+    	   dest.setChannels(service.getDefaultChannels());
+    	   dest.addExtraProperty("applicationContext", applicationContext);
+       }
     }
    
     private void createEndpoints(MessageBroker broker, ChannelSettings chanSettings)

@@ -1,7 +1,9 @@
 package net.stbbs.spring.jruby.modules;
 
-import net.stbbs.spring.jruby.SpringIntegratedJRubyRuntime;
 
+import org.jruby.Ruby;
+import org.jruby.RubyString;
+import org.jruby.anno.JRubyMethod;
 import org.jruby.javasupport.JavaEmbedUtils;
 import org.jruby.runtime.Block;
 import org.jruby.runtime.builtin.IRubyObject;
@@ -10,38 +12,48 @@ import org.springframework.transaction.TransactionStatus;
 
 public class TransactionSupport {
 
-	protected PlatformTransactionManager getTransactionManager(SpringIntegratedJRubyRuntime ruby,IRubyObject self)
+	private Ruby runtime;
+	private IRubyObject self;
+	
+	public TransactionSupport(Ruby runtime, IRubyObject self)
 	{
-		return ruby.getComponent(self, "transactionManager");
+		this.self = self;
+		this.runtime = runtime;
 	}
 
-	@ModuleMethod(arity=ModuleMethod.ARITY_NO_ARGUMENTS)
-	public IRubyObject withTransaction(SpringIntegratedJRubyRuntime ruby,IRubyObject self, IRubyObject[] args, Block block) {
-		PlatformTransactionManager txManager = getTransactionManager(ruby, self);
+	protected PlatformTransactionManager getTransactionManager()
+	{
+		IRubyObject t = self.callMethod(runtime.getCurrentContext(), "eval", RubyString.newUnicodeString(runtime, "transactionManager"));
+		return (PlatformTransactionManager)JavaEmbedUtils.rubyToJava(runtime, t, PlatformTransactionManager.class);
+	}
+
+	@JRubyMethod
+	public IRubyObject withTransaction(IRubyObject self, IRubyObject[] args, Block block) {
+		PlatformTransactionManager txManager = getTransactionManager();
 		TransactionStatus status = txManager.getTransaction(null);
 		IRubyObject ret;
 		try {
-			ret = block.call(ruby.getCurrentContext(), new IRubyObject[] {JavaEmbedUtils.javaToRuby(self.getRuntime(), status)});
+			ret = block.call(runtime.getCurrentContext(), new IRubyObject[] {JavaEmbedUtils.javaToRuby(self.getRuntime(), status)});
 			txManager.commit(status);
 		}
 		catch (RuntimeException ex) {
-			txManager.rollback(status);
+			if (!status.isCompleted()) txManager.rollback(status);
 			throw ex;
 		}
 		return ret;
 	}
 
-	@ModuleMethod(arity=ModuleMethod.ARITY_NO_ARGUMENTS)
-	public IRubyObject withRollbackOnlyTransaction(SpringIntegratedJRubyRuntime ruby,IRubyObject self, IRubyObject[] args, Block block) {
-		PlatformTransactionManager txManager = getTransactionManager(ruby, self);
+	@JRubyMethod
+	public IRubyObject withRollbackOnlyTransaction(IRubyObject self, IRubyObject[] args, Block block) {
+		PlatformTransactionManager txManager = getTransactionManager();
 		TransactionStatus status = txManager.getTransaction(null);
 		IRubyObject ret;
 		try {
 			status.setRollbackOnly();
-			ret = block.call(ruby.getCurrentContext(), new IRubyObject[] {JavaEmbedUtils.javaToRuby(self.getRuntime(), status)});
+			ret = block.call(runtime.getCurrentContext(), new IRubyObject[] {JavaEmbedUtils.javaToRuby(self.getRuntime(), status)});
 		}
 		finally {
-			txManager.rollback(status);
+			if (!status.isCompleted()) txManager.rollback(status);
 		}
 		return ret;
 	}

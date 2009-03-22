@@ -4,26 +4,37 @@ import javax.jms.JMSException;
 import javax.jms.TopicConnection;
 import javax.jms.TopicConnectionFactory;
 
+import org.jruby.Ruby;
+import org.jruby.javasupport.JavaEmbedUtils;
 import org.jruby.runtime.Block;
 import org.jruby.runtime.builtin.IRubyObject;
 
-import net.stbbs.spring.jruby.SpringIntegratedJRubyRuntime;
-
 public class JMSSupport {
-
-	private TopicConnection topicConnection = null;
+	static private Object mutex = new Object();
+	static private TopicConnection topicConnection = null;
+	private Ruby runtime;
+	private IRubyObject self;
 	
-	synchronized protected TopicConnection getTopicConnection(SpringIntegratedJRubyRuntime ruby, IRubyObject self) throws JMSException
+	public JMSSupport(Ruby runtime, IRubyObject self)
 	{
-		if (topicConnection == null) {
-			TopicConnectionFactory connectionFactory = ruby.getComponent(self, "connectionFactory");
-			topicConnection = connectionFactory.createTopicConnection();
-			topicConnection.start();
-		}
-		return topicConnection;
+		this.runtime = runtime;
+		this.self = self;
 	}
 	
-	public Object withTopicSession(SpringIntegratedJRubyRuntime ruby, IRubyObject self, IRubyObject[] args, Block block)
+	protected TopicConnection getTopicConnection() throws JMSException
+	{
+		synchronized(mutex) {
+			if (topicConnection == null) {
+				IRubyObject cf = self.callMethod(runtime.getCurrentContext(), "connectionFactory");
+				TopicConnectionFactory connectionFactory = (TopicConnectionFactory)JavaEmbedUtils.rubyToJava(runtime, cf, TopicConnectionFactory.class);
+				topicConnection = connectionFactory.createTopicConnection();
+				topicConnection.start();
+			}
+			return topicConnection;
+		}
+	}
+	
+	public Object withTopicSession(IRubyObject self, IRubyObject[] args, Block block)
 	{
 		// createTopicSession
 		// block call
@@ -31,7 +42,7 @@ public class JMSSupport {
 		return null;
 	}
 	
-	public Object createTopicSession(SpringIntegratedJRubyRuntime ruby, IRubyObject self, IRubyObject[] args, Block block)
+	public Object createTopicSession(IRubyObject self, IRubyObject[] args, Block block)
 	{
 		//s = tc.createTopicSession(false,Java::javax.jms.TopicSession::AUTO_ACKNOWLEDGE)
 		// withPublisher 特異メソッドを追加

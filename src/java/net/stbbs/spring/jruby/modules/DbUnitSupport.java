@@ -6,8 +6,6 @@ import java.sql.Connection;
 
 import javax.sql.DataSource;
 
-import net.stbbs.spring.jruby.SpringIntegratedJRubyRuntime;
-
 import org.dbunit.AbstractDatabaseTester;
 import org.dbunit.IDatabaseTester;
 import org.dbunit.database.DatabaseConfig;
@@ -22,13 +20,16 @@ import org.dbunit.ext.mssql.MsSqlConnection;
 import org.dbunit.ext.mysql.MySqlConnection;
 import org.dbunit.ext.oracle.OracleConnection;
 import org.dbunit.operation.DatabaseOperation;
+import org.jruby.Ruby;
+import org.jruby.anno.JRubyMethod;
+import org.jruby.anno.JRubyModule;
 import org.jruby.runtime.Block;
 import org.jruby.runtime.builtin.IRubyObject;
 import org.springframework.core.io.Resource;
 import org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy;
 
-@Module
-public class DbUnitSupport {
+@JRubyModule(name="DbUnitSupport")
+public class DbUnitSupport extends DataSourceSupport {
 	static class TransactionAwareDataSourceDatabaseTester extends AbstractDatabaseTester {
 		private TransactionAwareDataSourceProxy dataSource;
 
@@ -72,15 +73,14 @@ public class DbUnitSupport {
 		}
 	}
 	
-	protected DataSource getDataSource(SpringIntegratedJRubyRuntime ruby, IRubyObject self)
+	public DbUnitSupport(Ruby runtime, IRubyObject self)
 	{
-		return ruby.getComponent(self, "dataSource");
+		super(runtime, self);
 	}
-
-	protected void executeInsertOperation(SpringIntegratedJRubyRuntime ruby, IRubyObject self, 
-			IDataSet fixtures) throws Exception
+	
+	protected void executeInsertOperation(IRubyObject self, IDataSet fixtures) throws Exception
 	{
-		IDatabaseTester tester = new TransactionAwareDataSourceDatabaseTester(getDataSource(ruby, self));
+		IDatabaseTester tester = new TransactionAwareDataSourceDatabaseTester(getDataSource());
 		IDatabaseConnection conn = null;
 		try {
 			conn = tester.getConnection();
@@ -92,8 +92,8 @@ public class DbUnitSupport {
 		}
 	}
 	
-	@ModuleMethod(arity=ModuleMethod.ARITY_ONE_ARGUMENT)
-	public IRubyObject loadXlsFixture(SpringIntegratedJRubyRuntime ruby,IRubyObject self, IRubyObject[] args, Block block) throws Exception
+	@JRubyMethod(required=1)
+	public IRubyObject loadXlsFixture(IRubyObject self, IRubyObject[] args, Block block) throws Exception
 	{
 		// 引数が０の場合エラー
 		if (args.length < 1) {
@@ -101,7 +101,7 @@ public class DbUnitSupport {
 		}
 		
 		XlsDataSet ds = null;
-		Object o = ruby.toJava(args[0]);
+		Object o = toJava(args[0]);
 		InputStream inputStreamNeedToClose = null;
 		if (o instanceof File) {
 			ds = new XlsDataSet((File)o);
@@ -114,7 +114,7 @@ public class DbUnitSupport {
 			ds = new XlsDataSet(new File(args[0].asString().getUnicodeValue()));
 		}
 		try {
-			executeInsertOperation(ruby, self, ds); 
+			executeInsertOperation(self, ds); 
 		}
 		finally {
 			if (inputStreamNeedToClose != null) {
@@ -122,7 +122,7 @@ public class DbUnitSupport {
 				inputStreamNeedToClose = null;
 			}
 		}
-		return ruby.getNil();
+		return runtime.getNil();
 	}
 
 }

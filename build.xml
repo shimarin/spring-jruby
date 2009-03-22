@@ -45,5 +45,27 @@
 		</jar>
 
 	</target>
-	
+
+	<target name="minimum-for-gentoo">
+		<delete dir="build"/>
+		<mkdir dir="build/WEB-INF/classes"/>
+		<javac srcdir="src/java" destdir="build/WEB-INF/classes" encoding="UTF-8" debug="true">
+			<classpath>
+				<fileset dir="lib" includes="*.jar"/>
+				<fileset dir="src/webapp/WEB-INF/lib" includes="*.jar"/>
+			</classpath>
+		</javac>
+		<copy todir="build/WEB-INF/classes">
+			<fileset dir="src/java" includes="**/*.xml,**/*.rb"/>
+		</copy>
+		<copy todir="build/WEB-INF/lib">
+			<fileset dir="src/webapp/WEB-INF/lib" includes="spring-*.jar,commons-logging-*.jar"/>
+		</copy>
+		<copy todir="build/WEB-INF">
+			<fileset dir="src/webapp/WEB-INF" includes="*.xml,*.rb"/>
+		</copy>
+		<jar basedir="build" jarfile="build/minium-for-gentoo.war"/>
+
+	</target>
+
 </project>
