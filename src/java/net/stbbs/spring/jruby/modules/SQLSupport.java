@@ -20,7 +20,6 @@ import javax.sql.DataSource;
 
 import net.stbbs.jruby.Decorator;
 import net.stbbs.jruby.Util;
-import net.stbbs.spring.jruby.ColumnDescription;
 import net.stbbs.spring.jruby.TableDescription;
 
 import org.jruby.Ruby;
@@ -207,7 +206,7 @@ public class SQLSupport extends DataSourceSupport {
 			String name = md.getColumnName(i);
 			String type = md.getColumnTypeName(i);
 			int precision = md.getPrecision(i);
-			td.addColumn(new ColumnDescription(name, type, precision));
+			td.addColumn(new TableDescription.ColumnDescription(name, type, precision));
 		}
 		return td;
 	}
