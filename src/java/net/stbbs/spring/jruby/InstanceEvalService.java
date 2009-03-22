@@ -10,6 +10,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -19,7 +21,6 @@ import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import net.stbbs.spring.jruby.modules.ApplicationContextDecorator;
 import net.stbbs.spring.jruby.modules.ApplicationContextSupport;
 import net.stbbs.spring.jruby.modules.RequestContextSupport;
 import net.stbbs.spring.jruby.modules.DownloadSupport.DownloadContent;
@@ -290,7 +291,7 @@ public class InstanceEvalService {
 	static protected void printException(PrintWriter out, RubyException ex) throws IOException
 	{
 		out.println("<h2>exception</h2>");
-		out.println(escapeHTML(ex.message.toString()));
+		out.println(escapeHTML(ex.message.asString().getUnicodeValue()));
 		ByteArrayOutputStream baos = new ByteArrayOutputStream();
 		PrintStream ps = new PrintStream(baos);
 		ex.printBacktrace(ps);
@@ -300,11 +301,15 @@ public class InstanceEvalService {
 		baos.close();
 	}
 
-	public IRubyObject doInstanceEval(String expression)
+	protected IRubyObject getProxyInstance()
 	{
-		IRubyObject instanceEvaluableInstance = applicationContext.callMethod(
+		return applicationContext.callMethod(
 				applicationContext.getRuntime().getCurrentContext(), "allocateProxyObject");
-		return ApplicationContextSupport.scopedInstanceEval(instanceEvaluableInstance, expression);
+	}
+	
+	protected IRubyObject doInstanceEval(IRubyObject proxyInstance, String expression)
+	{
+		return ApplicationContextSupport.scopedInstanceEval(proxyInstance, expression);
 	}
 	
 	protected void service(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException
@@ -312,12 +317,13 @@ public class InstanceEvalService {
 		request.setCharacterEncoding("UTF-8");
 		String expression = request.getParameter("expression");
 
+		IRubyObject instance = getProxyInstance();
 		IRubyObject result = null;
 		RubyException re = null;
 		boolean exec = false;
 		try {
 			if (expression != null) {
-				result = doInstanceEval(expression);
+				result = doInstanceEval(instance, expression);
 				exec = true;
 			}
 		}
@@ -363,6 +369,26 @@ public class InstanceEvalService {
 			for (IRubyObject ro:ruby_p) {
 				printResult(out, ro.getRuntime(), ro);
 			}
+		}
+		
+		// インスタンス変数の処理
+		Map<String,IRubyObject> instanceVariables = new HashMap<String,IRubyObject>();
+		Iterator i = instance.instanceVariableNames();
+		while (i.hasNext()) {
+			String name = (String)i.next();
+			if (name.startsWith("@_")) continue;	// @_で始まる奴はシステムの都合で使う奴なので
+			IRubyObject value = instance.getInstanceVariable(name);
+			instanceVariables.put(name, value);
+		}
+		if (instanceVariables.size() > 0) {
+			out.println("<h2>instance_variables</h2>");
+			out.println("<table>");
+			for (Map.Entry<String, IRubyObject> entry:instanceVariables.entrySet()) {
+				out.println("<tr><th valign='top'>"+ entry.getKey() + "</th><td>");
+				printResult(out, instance.getRuntime(), entry.getValue());
+				out.println("</td></tr>");
+			}
+			out.println("</table>");
 		}
 		if (exec) {
 			out.println("<h2>result</h2>");

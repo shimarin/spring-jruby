@@ -185,7 +185,7 @@ public class Util {
 	static private Object getModuleObject(final Ruby runtime, IRubyObject self, final Class moduleClass)
 	{
 		synchronized (self) {
-			Map<Class,Object> modmap = getClassAndInstanceMap(runtime, self, moduleClass, "@java_module_objects"); 
+			Map<Class,Object> modmap = getClassAndInstanceMap(runtime, self, moduleClass, "@_java_module_objects"); 
 			Object modobj = modmap.get(moduleClass);
 			if (modobj == null) {
 				modobj = instantiateObjectUsingAppropriateConstructor(runtime, moduleClass, self);
@@ -249,7 +249,7 @@ public class Util {
 	static private Object getDecoratorObject(final Ruby runtime, IRubyObject self, final Class decoratorClass)
 	{
 		synchronized (self) {
-			Map<Class,Object> decmap = getClassAndInstanceMap(runtime, self, decoratorClass, "@java_decolator_objects"); 
+			Map<Class,Object> decmap = getClassAndInstanceMap(runtime, self, decoratorClass, "@_java_decolator_objects"); 
 			Object decobj = decmap.get(decoratorClass);
 			if (decobj != null) return decobj;
 			

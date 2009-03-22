@@ -19,6 +19,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 import net.stbbs.jruby.Decorator;
 import net.stbbs.jruby.Util;
+import net.stbbs.spring.jruby.modules.ApplicationContextSupport.ApplicationContextDecorator;
 
 public class RequestContextSupport {
 	

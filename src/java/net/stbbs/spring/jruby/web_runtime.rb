@@ -8,7 +8,6 @@ java_module Java::net.stbbs.jruby.modules.ICUSupport, "com.ibm.icu.text.Normaliz
 java_module Java::net.stbbs.jruby.modules.Dom4jSupport, "org.dom4j.Document"
 java_module Java::net.stbbs.jruby.modules.PHPRPCSupport, "org.phprpc.PHPRPC_Client"
 java_module Java::net.stbbs.jruby.modules.SSHSupport, "com.jcraft.jsch.JSch"
-java_module Java::net.stbbs.spring.jruby.modules.ApplicationContextSupport,"org.springframework.context.ApplicationContext"
 java_module Java::net.stbbs.spring.jruby.modules.RequestContextSupport, "org.springframework.web.context.request.RequestContextHolder"
 java_module Java::net.stbbs.spring.jruby.modules.DownloadSupport
 java_module Java::net.stbbs.spring.jruby.modules.SQLSupport, "org.springframework.jdbc.core.JdbcTemplate"
