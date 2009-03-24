@@ -1,4 +1,5 @@
 include ApplicationContextSupport
+include URLConnectionSupport if defined? URLConnectionSupport
 include TransactionSupport if defined? TransactionSupport
 include SQLSupport if defined? SQLSupport
 include HibernateSupport if defined? HibernateSupport

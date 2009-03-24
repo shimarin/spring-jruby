@@ -37,6 +37,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.jdbc.InvalidResultSetAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.simple.SimpleJdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.jdbc.support.rowset.SqlRowSet;
 import org.springframework.jdbc.support.rowset.SqlRowSetMetaData;
 
@@ -51,6 +52,7 @@ public class SQLSupport extends DataSourceSupport {
 		Util.registerDecorator(runtime, DateDecorator.class);
 		Util.registerDecorator(runtime, TimestampDecorator.class);
 		Util.registerDecorator(runtime, BigDecimalDecorator.class);
+		Util.registerDecorator(runtime, DataSourceDecorator.class);
 	}
 
 	public SQLSupport(Ruby runtime, IRubyObject self)
@@ -276,8 +278,8 @@ public class SQLSupport extends DataSourceSupport {
 				IRubyObject obj = block.call(self.getRuntime().getCurrentContext(),
 						new IRubyObject[] {JavaEmbedUtils.javaToRuby(runtime, new SqlRowProxy(sqlRowSet))});
 				Object jobj = JavaEmbedUtils.rubyToJava(runtime, obj, null);
-				if (jobj instanceof SqlRowProxy) {	// ブロックの評価結果がSqlRowだったら to_assocを適用する
-					obj = obj.callMethod(runtime.getCurrentContext(), "to_assoc");
+				if (jobj instanceof SqlRowProxy) {	// ブロックの評価結果がSqlRowだったら to_hashを適用する
+					obj = obj.callMethod(runtime.getCurrentContext(), "to_hash");
 				}
 				array.add(obj);
 			}
@@ -286,7 +288,7 @@ public class SQLSupport extends DataSourceSupport {
 		}
 
 		@JRubyMethod
-		public RubyArray to_assoc_list(IRubyObject self, IRubyObject[] args, Block block)
+		public RubyArray to_hash_array(IRubyObject self, IRubyObject[] args, Block block)
 		{
 			Ruby runtime = self.getRuntime();
 			RubyArray array = runtime.newArray();
@@ -306,7 +308,7 @@ public class SQLSupport extends DataSourceSupport {
 		@JRubyMethod
 		public IRubyObject dup(IRubyObject self, IRubyObject[] args, Block block)
 		{
-			return to_assoc_list(self, args, block);
+			return to_hash_array(self, args, block);
 		}
 	}
 	
@@ -393,17 +395,17 @@ public class SQLSupport extends DataSourceSupport {
 		@JRubyMethod
 		public IRubyObject inspect(IRubyObject self, IRubyObject[] args, Block block)
 		{
-			return to_assoc(self, args, block).inspect();
+			return to_hash(self, args, block).inspect();
 		}
 		
 		@JRubyMethod
 		public IRubyObject dup(IRubyObject self, IRubyObject[] args, Block block)
 		{
-			return to_assoc(self, args, block);
+			return to_hash(self, args, block);
 		}
 
 		@JRubyMethod(optional=1)
-		public RubyHash to_assoc(IRubyObject self, IRubyObject[] args, Block block)
+		public RubyHash to_hash(IRubyObject self, IRubyObject[] args, Block block)
 		{
 			Ruby runtime = self.getRuntime();
 			Set<String> columnNames = new HashSet<String>();
@@ -521,6 +523,29 @@ public class SQLSupport extends DataSourceSupport {
 		public String inspect(IRubyObject self, IRubyObject[] args, Block block)
 		{
 			return '"' + this.self.toPlainString() + '"';
+		}
+	}
+	
+	@Decorator(DataSource.class)
+	public static class DataSourceDecorator {
+		DataSource dataSource;
+		public DataSourceDecorator(DataSource dataSource)
+		{
+			this.dataSource = dataSource;
+		}
+		
+		@JRubyMethod
+		public IRubyObject withConnection(IRubyObject self, IRubyObject[] args, Block block)
+		{
+			Ruby runtime = self.getRuntime();
+			if (!block.isGiven()) return runtime.getNil();
+			Connection con = DataSourceUtils.getConnection(dataSource);
+			try {
+				return block.call(runtime.getCurrentContext(), new IRubyObject[] {JavaEmbedUtils.javaToRuby(runtime, con)});
+			}
+			finally {
+				DataSourceUtils.releaseConnection(con, dataSource);
+			}
 		}
 	}
 }

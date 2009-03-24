@@ -55,7 +55,7 @@ public class JavaTypeSupport {
 			String str = self.asString().getUnicodeValue(); 
 			return '"' + str + '"';
 		}
-
+		
 	}
 
 	@Decorator(byte[].class)
@@ -65,6 +65,13 @@ public class JavaTypeSupport {
 		{
 			this.self = self;
 		}
+		
+		@JRubyMethod 
+		public String base64(IRubyObject self, IRubyObject[] args, Block block)
+		{
+			return encodeBase64(this.self);
+		}
+		
 		@JRubyMethod
 		public void save(IRubyObject self, IRubyObject[] args, Block block) throws IOException
 		{
@@ -106,4 +113,46 @@ public class JavaTypeSupport {
 		}
 	}
 
+	public static String encodeBase64(byte[] data)
+	{
+		 final char[] base64EncodeChars = new char[] {
+			        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
+			        'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
+			        'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
+			        'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f',
+			        'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n',
+			        'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
+			        'w', 'x', 'y', 'z', '0', '1', '2', '3',
+			        '4', '5', '6', '7', '8', '9', '+', '/' };
+
+		 StringBuffer sb = new StringBuffer();
+        int r = data.length % 3;
+        int len = data.length - r;
+        int i = 0;
+        int c;
+        while (i < len) {
+            c = (0x000000ff & data[i++]) << 16 |
+                (0x000000ff & data[i++]) << 8  |
+                (0x000000ff & data[i++]);
+            sb.append(base64EncodeChars[c >> 18]);
+            sb.append(base64EncodeChars[c >> 12 & 0x3f]);
+            sb.append(base64EncodeChars[c >> 6  & 0x3f]);
+            sb.append(base64EncodeChars[c & 0x3f]);
+        }
+        if (r == 1) {
+            c = 0x000000ff & data[i++];
+            sb.append(base64EncodeChars[c >> 2]);
+            sb.append(base64EncodeChars[(c & 0x03) << 4]);
+            sb.append("==");
+        }
+        else if (r == 2) {
+            c = (0x000000ff & data[i++]) << 8 |
+                (0x000000ff & data[i++]);
+            sb.append(base64EncodeChars[c >> 10]);
+            sb.append(base64EncodeChars[c >> 4 & 0x3f]);
+            sb.append(base64EncodeChars[(c & 0x0f) << 2]);
+            sb.append("=");
+        }
+        return sb.toString();
+	}
 }

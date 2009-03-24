@@ -1,6 +1,7 @@
 package net.stbbs.jruby.modules;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -81,13 +82,31 @@ public class InputStreamSupport {
 		@JRubyMethod
 		public String readAll(IRubyObject self, IRubyObject[] args, Block block) throws IOException
 		{
-			BufferedReader br = getBufferedReader();
-			int c;
-			StringBuffer buf = new StringBuffer();
-			while ((c = br.read()) >= 0) {
-				buf.append((char)c);
-			}
-			return buf.toString();
+			return new String(InputStreamSupport.toByteArray(is), "UTF-8");
 		}
+
+		@JRubyMethod
+		public byte[] toByteArray(IRubyObject self, IRubyObject[] args, Block block) throws IOException
+		{
+			return InputStreamSupport.toByteArray(this.is);
+		}
+		
+	}
+	
+	public static byte[] toByteArray(InputStream is) throws IOException
+	{
+		ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		byte[] buf = new byte[1024];
+		try {
+			int n;
+			while ((n = is.read(buf)) >= 0) {
+				baos.write(buf, 0, n);
+			}
+		}
+		finally {
+			is.close();
+		}
+		return baos.toByteArray();
+		
 	}
 }

@@ -1,8 +1,10 @@
 java_module Java::net.stbbs.jruby.modules.InputStreamSupport
 java_module Java::net.stbbs.jruby.modules.JavaTypeSupport
+java_module Java::net.stbbs.jruby.modules.DOMSupport
 java_module Java::net.stbbs.jruby.modules.DateSupport
 java_module Java::net.stbbs.jruby.modules.MIDISupport
 java_module Java::net.stbbs.jruby.modules.GraphicsSupport
+java_module Java::net.stbbs.jruby.modules.URLConnectionSupport
 java_module Java::net.stbbs.jruby.modules.JRubyRuntimeSupport
 java_module Java::net.stbbs.jruby.modules.ICUSupport, "com.ibm.icu.text.Normalizer"
 java_module Java::net.stbbs.jruby.modules.Dom4jSupport, "org.dom4j.Document"
