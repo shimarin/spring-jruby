@@ -3,6 +3,7 @@ include URLConnectionSupport if defined? URLConnectionSupport
 include TransactionSupport if defined? TransactionSupport
 include SQLSupport if defined? SQLSupport
 include HibernateSupport if defined? HibernateSupport
+include HibernateAnnotationsSupport if defined? HibernateAnnotationsSupport
 include MailSupport if defined? MailSupport
 include VelocitySupport if defined? VelocitySupport
 
@@ -13,7 +14,6 @@ if defined? GraphicsSupport then
 end 
 
 include DbUnitSupport if defined? DbUnitSupport
-include MVCSupport if defined? MVCSupport
 include POISupport if defined? POISupport
 include MIDISupport if defined? MIDISupport
 include SSHSupport if defined? SSHSupport

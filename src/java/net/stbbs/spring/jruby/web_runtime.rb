@@ -15,5 +15,6 @@ java_module Java::net.stbbs.spring.jruby.modules.DownloadSupport
 java_module Java::net.stbbs.spring.jruby.modules.SQLSupport, "org.springframework.jdbc.core.JdbcTemplate"
 java_module Java::net.stbbs.spring.jruby.modules.TransactionSupport, "org.springframework.transaction.PlatformTransactionManager"
 java_module Java::net.stbbs.spring.jruby.modules.BlazeDSSupport, "flex.messaging.Destination"
-java_module Java::net.stbbs.spring.jruby.modules.HibernateSupport, ["org.hibernate.SessionFactory", "org.hibernate.cfg.AnnotationConfiguration", "javax.persistence.Entity"]
+java_module Java::net.stbbs.spring.jruby.modules.HibernateSupport, ["org.hibernate.SessionFactory"]
+java_module Java::net.stbbs.spring.jruby.modules.HibernateAnnotationsSupport, ["org.hibernate.cfg.AnnotationConfiguration", "javax.persistence.Entity"]
 java_module Java::net.stbbs.spring.jruby.modules.JasperReportsSupport, ["net.sf.jasperreports.engine.JasperReport","org.apache.commons.digester.Digester"]

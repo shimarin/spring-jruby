@@ -90,25 +90,27 @@ public class JavaTypeSupport {
 
 			Object jo = JavaUtil.convertRubyToJava(args[0]);
 			if (jo instanceof File) {
-				 File file = (File)jo;
-				 FileOutputStream fos = new FileOutputStream(file);
-				 fos.write(this.self);
-				 fos.flush();
-				 fos.close();
+			    File file = (File)jo;
+			    File parent = file.getParentFile(); // 親ディレクトリ部を得る
+			    if (parent != null && !parent.exists()) {  // 親ディレクトリが指定されている場合
+			    	parent.mkdirs();	  // ディレクトリを作成する
+			    }
+			    FileOutputStream fos = new FileOutputStream(file);
+			    try {
+				    fos.write(this.self);
+				    fos.flush();
+			    }
+			    finally {
+			    	fos.close();
+			    }
 			} else if (jo instanceof OutputStream) {
 				OutputStream os = (OutputStream)jo;
 				os.write(this.self);
 				os.flush();
 			} else {
 				String filename = args[0].asString().getUnicodeValue();
-				FileOutputStream fos = new FileOutputStream(filename);
-				try {
-					save(self, new IRubyObject[] { JavaEmbedUtils.javaToRuby(runtime, fos) }, block);
-				}
-				finally {
-					fos.close();
-				}
-				
+				File file = new File(filename);
+				save(self, new IRubyObject[] { JavaEmbedUtils.javaToRuby(runtime, file) }, block);
 			}
 		}
 	}
