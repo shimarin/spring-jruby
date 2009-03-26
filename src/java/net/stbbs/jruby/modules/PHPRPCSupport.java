@@ -10,6 +10,7 @@ import net.stbbs.jruby.Util;
 import org.jruby.Ruby;
 import org.jruby.RubyHash;
 import org.jruby.RubyModule;
+import org.jruby.anno.JRubyConstant;
 import org.jruby.anno.JRubyMethod;
 import org.jruby.javasupport.JavaEmbedUtils;
 import org.jruby.runtime.Block;
@@ -19,26 +20,13 @@ import org.phprpc.PHPRPC_Error;
 import org.phprpc.util.AssocArray;
 
 public class PHPRPCSupport {
+	
+	@JRubyConstant("PHPRPC_Client") public static final Class PHPRPC_CLIENT = PHPRPC_Client.class;
+	
 	public static void onRegister(RubyModule module)
 	{
 		Ruby runtime = module.getRuntime();
 		Util.registerDecorator(runtime, PHPRPC_ClientDecorator.class);
-	}
-	
-	@JRubyMethod(required=1, optional=2)
-	public PHPRPC_Client newPHPRPCClient(IRubyObject self, IRubyObject[] args, Block block)
-	{
-		String host = args[0].asString().getUnicodeValue();
-		PHPRPC_Client client = new PHPRPC_Client();
-		boolean success;
-		if (args.length > 2) {
-			String username = args[1].asString().getUnicodeValue();
-			String password = args[2].asString().getUnicodeValue();
-			success = client.useService(host, username, password);
-		} else {
-			success = client.useService(host);
-		}
-		return success? client : null;
 	}
 	
 	@Decorator(PHPRPC_Client.class)
@@ -49,7 +37,38 @@ public class PHPRPCSupport {
 		{
 			this.client = client;
 		}
+
+		public PHPRPC_ClientDecorator()
+		{
+		}
+
+		@JRubyMethod(required=1, optional=2)
+		public PHPRPC_Client initialize(IRubyObject self, IRubyObject[] args, Block block)
+		{
+			Ruby runtime = self.getRuntime();
+			if (args.length < 1) {
+				throw runtime.newArgumentError(args.length, 1);
+			}
+			String host = args[0].asString().getUnicodeValue();
+			client = new PHPRPC_Client();
+			boolean success;
+			if (args.length > 2) {
+				if (args.length < 3) {
+					throw runtime.newArgumentError(args.length, 3);
+				}
+				String username = args[1].asString().getUnicodeValue();
+				String password = args[2].asString().getUnicodeValue();
+				success = client.useService(host, username, password);
+			} else {
+				success = client.useService(host);
+			}
+			if (!success) {
+				runtime.newIOError("PHPRPC_Client initialization failed.");
+			}
+			return client;
+		}
 		
+
 		@JRubyMethod(required=1)
 		public Object method_missing(IRubyObject self, IRubyObject[] args, Block block) throws UnsupportedEncodingException, PHPRPC_Error
 		{

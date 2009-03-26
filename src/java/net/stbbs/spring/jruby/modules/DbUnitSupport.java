@@ -97,7 +97,7 @@ public class DbUnitSupport extends DataSourceSupport {
 	{
 		// 引数が０の場合エラー
 		if (args.length < 1) {
-			throw self.getRuntime().newArgumentError("Method requires at least one argument.");
+			throw self.getRuntime().newArgumentError(args.length, 1);
 		}
 		
 		XlsDataSet ds = null;

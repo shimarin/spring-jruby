@@ -8,6 +8,7 @@ import java.awt.Graphics2D;
 import java.awt.Stroke;
 import java.awt.geom.GeneralPath;
 import java.awt.image.BufferedImage;
+import java.awt.image.IndexColorModel;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
@@ -35,7 +36,15 @@ public class GraphicsSupport {
 		Ruby runtime = module.getRuntime();
 		Util.registerDecorator(runtime, BufferedImageDecorator.class);
 		Util.registerDecorator(runtime, Graphics2DDecorator.class);
+		Util.registerDecorator(runtime, FontDecorator.class);
+		Util.registerDecorator(runtime, BasicStrokeDecorator.class);
 	}
+	
+	@JRubyConstant("BufferedImage") public static final Class BUFFERED_IMAGE = BufferedImage.class;
+	@JRubyConstant("Color") public static final Class COLOR = Color.class;
+	@JRubyConstant("BasicStroke") public static final Class BASIC_STROKE = BasicStroke.class;
+	@JRubyConstant("GeneralPath") public static final Class GENERAL_PATH = GeneralPath.class;
+	@JRubyConstant("Font") public static final Class FONT = Font.class;
 
 	@Decorator(BufferedImage.class)
 	public static class BufferedImageDecorator {
@@ -44,7 +53,40 @@ public class GraphicsSupport {
 		{
 			this.bufferedImage = bufferedImage;
 		}
+		public BufferedImageDecorator()
+		{
+		}
 		
+		@JRubyMethod(required=2,optional=2)
+		public BufferedImage initialize(IRubyObject self, IRubyObject[] args, Block block)
+		{
+			Ruby runtime = self.getRuntime();
+			if (args.length < 2) {
+				throw runtime.newArgumentError(args.length, 2);
+			}
+			int width = (int)args[0].convertToInteger().getLongValue();
+			int height = (int)args[1].convertToInteger().getLongValue();
+			int type = BufferedImage.TYPE_INT_RGB;
+			if (args.length > 2) type = (int)args[2].convertToInteger().getLongValue();
+			if (args.length > 3) {
+				bufferedImage = new BufferedImage(
+					width, height,type,
+					(IndexColorModel)JavaEmbedUtils.rubyToJava(runtime, args[3], IndexColorModel.class));
+			} else {
+				bufferedImage = new BufferedImage(width, height,type);
+			}
+
+			if (block.isGiven()) {
+				final Graphics2D g2d = (Graphics2D)bufferedImage.getGraphics();
+				
+				IRubyObject g = JavaEmbedUtils.javaToRuby(runtime, g2d);
+				block.call(
+					runtime.getCurrentContext(), 
+					new IRubyObject[] { g});
+			}
+			return bufferedImage;
+		}
+
 		@JRubyMethod
 		public Graphics getGraphics(IRubyObject self, IRubyObject[] args, Block block)
 		{
@@ -58,15 +100,77 @@ public class GraphicsSupport {
 			if (args.length > 0) {
 				format = args[0].asString().getUnicodeValue();
 			}
-			ByteArrayOutputStream baos = new ByteArrayOutputStream();
 			if (format.equals("png")) {
-					ImageIO.write(bufferedImage, "png", baos);
 			} else if (format.equals("jpeg") || format.equals("jpg")) {
-				ImageIO.write(bufferedImage, "jpg", baos);
+				format = "jpg";
 			} else {
 				throw runtime.newArgumentError("Image file format '" + format + "' is not supported.");
 			}
+			return toByteArray(bufferedImage, format);
+		}
+
+		public static byte[] toByteArray(BufferedImage bufferedImage, String format) throws IOException
+		{
+			ByteArrayOutputStream baos = new ByteArrayOutputStream();
+			ImageIO.write(bufferedImage, format, baos);
 			return baos.toByteArray();
+		}
+	}
+	
+
+	@Decorator(BasicStroke.class)
+	public static class BasicStrokeDecorator {
+		private BasicStroke stroke;
+		public BasicStrokeDecorator(BasicStroke stroke) {
+			this.stroke = stroke;
+		}
+		public BasicStrokeDecorator() {
+		}
+		@JRubyMethod(required=1,optional=1)
+		public BasicStroke initialize(IRubyObject self, IRubyObject[] args, Block block)
+		{
+			if (args.length < 1) return (stroke = new BasicStroke());
+			//デフォルト = 1.0、CAP_SQUARE、JOIN_MITER、マイターリミット 10.0 です。
+			RubyHash opts = args[0].convertToHash();
+			Double width = Util.getOptionDouble(opts, "width", 1.0);
+			Integer cap = Util.getOptionInteger(opts, "cap", BasicStroke.CAP_SQUARE);
+			Integer join = Util.getOptionInteger(opts, "join", BasicStroke.JOIN_MITER);
+			Double miterlimit = Util.getOptionDouble(opts, "miterlimit", 10.0);
+			float[] dash = Util.getOptionFloatArray(opts, "dash");
+			Double dash_phase = Util.getOptionDouble(opts, "dash_phase", 0.0);
+			if (dash == null && dash_phase == null) {
+				return (stroke = new BasicStroke(width.floatValue(), cap, join, miterlimit.floatValue()));
+			}
+			// else
+			return (stroke = new BasicStroke(width.floatValue(), cap, join, miterlimit.floatValue(), dash, dash_phase.floatValue()));
+		}
+	}
+	
+	@Decorator(Font.class)
+	public static class FontDecorator {
+		private Font font;
+		
+		public FontDecorator(Font font)
+		{
+			this.font = font;
+		}
+		
+		public FontDecorator()
+		{
+		}
+		
+		@JRubyMethod(required=1,optional=1)
+		public Font initialize(IRubyObject self, IRubyObject[] args, Block block)
+		{
+			Ruby runtime = self.getRuntime();
+			if (args.length < 1) {
+				throw runtime.newArgumentError(args.length, 1);
+			}
+			int size = (int)args[0].convertToInteger().getLongValue();
+			RubyHash opts = args.length > 1? (RubyHash)args[1] : null;
+			String name = Util.getOptionString(opts, "name", null);
+			int style = Util.getOptionInteger(opts, "style", Font.PLAIN);
+			return (font = new Font(name, style, size));
 		}
 	}
 	
@@ -78,6 +182,20 @@ public class GraphicsSupport {
 		{
 			this.runtime = runtime;
 			this.graphics = graphics;
+		}
+		
+		@JRubyMethod(name="<<", required=1)
+		public IRubyObject set(IRubyObject self, IRubyObject[] args, Block block)
+		{
+			Object jo = JavaEmbedUtils.rubyToJava(runtime, args[0], null);
+			if (jo instanceof Stroke) {
+				graphics.setStroke((Stroke)jo);
+			} else if (jo instanceof Font) {
+				graphics.setFont((Font)jo);
+			} else if (jo instanceof Color) {
+				graphics.setColor((Color)jo);
+			}
+			return self;
 		}
 		
 		@JRubyMethod
@@ -92,74 +210,6 @@ public class GraphicsSupport {
 			}
 			return gp;
 		}
-		
-		@JRubyMethod
-		public IRubyObject setStroke(IRubyObject self, IRubyObject[] args, Block block)
-		{
-			// 引数が足りない場合エラー
-			if (args.length < 1) {
-				throw runtime.newArgumentError("Method requires at least one argument.");
-			}
-			Object jo = JavaEmbedUtils.rubyToJava(runtime, args[0], null);
-			if (jo instanceof Stroke) {
-				graphics.setStroke((Stroke)jo);
-			} else {
-				RubyHash options = (RubyHash)args[0];
-				Double width = Util.getOptionDouble(options, "width", 1.0);
-				Integer cap = Util.getOptionInteger(options, "cap", BasicStroke.CAP_SQUARE);
-				Integer join = Util.getOptionInteger(options, "join", BasicStroke.JOIN_MITER);
-				Double miterlimit = Util.getOptionDouble(options, "miterlimit", 10.0);
-				BasicStroke bs = new BasicStroke(width.floatValue(), cap, join, miterlimit.floatValue());
-				graphics.setStroke(bs);
-			}
-			return self;
-		}
-		@JRubyMethod
-		public IRubyObject setFont(IRubyObject self, IRubyObject[] args, Block block) 
-		{
-			// 引数が足りない場合エラー
-			if (args.length < 1) {
-				throw runtime.newArgumentError("Method requires at least one argument.");
-			}
-			Object jo = JavaEmbedUtils.rubyToJava(runtime, args[0], null);
-			if (jo instanceof Font) {
-				graphics.setFont((Font)jo);
-			} else {
-				RubyHash options = (RubyHash)args[0];
-				String name = Util.getOptionString(options, "name");
-				Integer style = Util.getOptionInteger(options, "style", Font.PLAIN);
-				Integer size = Util.getOptionInteger(options, "size", graphics.getFont().getSize());
-				graphics.setFont(new Font(name, style, size));
-			}
-			return self;
-		}
-		
-		@JRubyMethod
-		public IRubyObject setColor(IRubyObject self, IRubyObject[] args, Block block) 
-		{
-			// 引数が足りない場合エラー
-			if (args.length < 1) {
-				throw runtime.newArgumentError("Method requires at least one argument.");
-			}
-			Object jo = JavaEmbedUtils.rubyToJava(runtime, args[0], null);
-			if (jo instanceof Color) {
-				graphics.setColor((Color)jo);
-			} else {
-				if (args.length < 3) {
-					throw runtime.newArgumentError("Method requires at least three arguments(r,g,b,(a)).");
-				}
-				float rr = (float)RubyNumeric.num2dbl(args[0]);
-				float gg = (float)RubyNumeric.num2dbl(args[1]);
-				float bb = (float)RubyNumeric.num2dbl(args[2]);
-				Float aa = args.length > 3? (float)RubyNumeric.num2dbl(args[3]) : null;
-				if (aa == null) {
-					graphics.setColor(new Color(rr, gg, bb));
-				} else {
-					graphics.setColor(new Color(rr, gg, bb, aa));
-				}
-			}
-			return self;
-		}
 	}
 	
 	private Ruby runtime;
@@ -169,79 +219,13 @@ public class GraphicsSupport {
 		this.runtime = runtime;
 	}
 	
-	@JRubyMethod(required=2)
-	static public BufferedImage newBufferedImage(IRubyObject self, IRubyObject[] args, Block block) 
-	{
-		Ruby runtime = self.getRuntime();
-		// 引数が足りない場合エラー
-		if (args.length < 2) {
-			throw runtime.newArgumentError("Method requires at least two arguments.");
-		}
-
-		int type = BufferedImage.TYPE_INT_RGB;
-		if (args.length > 2) type = RubyNumeric.num2int(args[2]);
-		BufferedImage bi = new BufferedImage(
-				RubyNumeric.num2int(args[0]),
-				RubyNumeric.num2int(args[1]),type);
-
-		if (block.isGiven()) {
-			final Graphics2D g2d = (Graphics2D)bi.getGraphics();
-			
-			IRubyObject g = JavaEmbedUtils.javaToRuby(runtime, g2d);
-			block.call(
-				runtime.getCurrentContext(), 
-				new IRubyObject[] { g});
-		}
-		return bi;
-	}
-	
-	@JRubyMethod
-	public GeneralPath newGeneralPath(IRubyObject self, IRubyObject[] args, Block block)
-	{
-		return new GeneralPath();
-	}
-
-	@JRubyMethod(optional=3)
-	public Object newBasicStroke(IRubyObject self, IRubyObject[] args, Block block)
-	{
-		BasicStroke bs;
-		if (args.length > 3) bs = new BasicStroke((float)RubyFloat.num2dbl(args[0]), RubyNumeric.num2int(args[1]), RubyNumeric.num2int(args[2]),(float) RubyFloat.num2dbl(args[3]));
-		else if (args.length > 2) bs = new BasicStroke((float)RubyFloat.num2dbl(args[0]), RubyNumeric.num2int(args[1]), RubyNumeric.num2int(args[2]));
-		else if (args.length > 1) bs = new BasicStroke((float)RubyFloat.num2dbl(args[0]), RubyNumeric.num2int(args[1]), BasicStroke.JOIN_ROUND);
-		else if (args.length > 0) bs = new BasicStroke((float)RubyFloat.num2dbl(args[0]));
-		else bs = new BasicStroke();
-		return bs;
-	}
-	
-	@JRubyMethod(required=3)
-	public Object newFont(IRubyObject self, IRubyObject[] args, Block block)
-	{
-		return new Font(args[0].asString().getUnicodeValue(), RubyNumeric.num2int(args[1]), RubyNumeric.num2int(args[2]));
-	}
-
-	@JRubyMethod(required=1)
-	public Object newFontBySize(IRubyObject self, IRubyObject[] args, Block block)
-	{
-		return new Font(null, Font.PLAIN, RubyNumeric.num2int(args[0]));
-	}
-	
 	@JRubyMethod(optional=2)
 	public Object paint(IRubyObject self, IRubyObject[] args, Block block) throws IOException
 	{
-		final int type = BufferedImage.TYPE_INT_RGB;
-		int width = 512;
-		int height = 384;
-		if (args.length > 0) width = RubyNumeric.num2int(args[0]);
-		if (args.length > 1) height = RubyNumeric.num2int(args[1]);
-		
-		IRubyObject bi = self.callMethod(runtime.getCurrentContext(), 
-				"newBufferedImage", 
-				new IRubyObject[]{
-					RubyNumeric.int2fix(runtime, width),
-					RubyNumeric.int2fix(runtime, height),
-					RubyNumeric.int2fix(runtime, type)},
-				block);
-		return bi.callMethod(runtime.getCurrentContext(), "download", runtime.newSymbol("png"));
+		IRubyObject width = runtime.newFixnum(512);
+		IRubyObject height = runtime.newFixnum(384);
+		return self.getMetaClass().getConstant("BufferedImage").callMethod(
+				runtime.getCurrentContext(), "new", new IRubyObject[] {width,height}, block);
 	}
 
 	@JRubyMethod(optional=2)

@@ -1,5 +1,6 @@
 package net.stbbs.spring.jruby;
 
+import java.awt.image.BufferedImage;
 import java.beans.PropertyDescriptor;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -21,6 +22,7 @@ import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import net.stbbs.jruby.modules.GraphicsSupport;
 import net.stbbs.spring.jruby.modules.ApplicationContextSupport;
 import net.stbbs.spring.jruby.modules.RequestContextSupport;
 import net.stbbs.spring.jruby.modules.DownloadSupport.DownloadContent;
@@ -346,6 +348,8 @@ public class InstanceEvalService {
 				dc = (DownloadContent)o;
 			} else if (o instanceof byte[]) {
 				dc = new DownloadContent((byte[])o);
+			} else if (o instanceof BufferedImage) {
+				dc = new DownloadContent(GraphicsSupport.BufferedImageDecorator.toByteArray((BufferedImage)o, "png"));
 			}
 			if (dc != null) {
 				response.setContentType(dc.getContentType());

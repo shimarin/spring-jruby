@@ -17,6 +17,7 @@ import javax.servlet.http.HttpServletResponse;
 import net.stbbs.spring.jruby.JRubyRuntimeListener;
 import net.stbbs.spring.jruby.modules.BlazeDSSupport;
 
+import org.jruby.Ruby;
 import org.jruby.RubyClass;
 import org.jruby.RubyHash;
 import org.jruby.runtime.builtin.IRubyObject;
@@ -31,6 +32,7 @@ import flex.messaging.Server;
 import flex.messaging.VersionInfo;
 import flex.messaging.client.FlexClientManager;
 import flex.messaging.config.ChannelSettings;
+import flex.messaging.config.ConfigMap;
 import flex.messaging.config.ConfigurationException;
 import flex.messaging.config.ConfigurationManager;
 import flex.messaging.config.FlexClientSettings;
@@ -163,17 +165,30 @@ public class JRubyMessageBrokerServlet  extends HttpServlet {
         redeployManager.setTouchFiles(systemSettings.getTouchFiles());
         redeployManager.setWatchFiles(systemSettings.getWatchFiles());
         broker.setRedeployManager(redeployManager);
+        
+        /**
+         * 定数 BlazeDSConfigを読む
+         */
+		String remotingEndpointURL = BlazeDSSupport.ENDPOINT_URL_BASE + BlazeDSSupport.DEFAULT_REMOTING_ENDPOINT_URL;
+		Map<String, IRubyObject> destinations = null;
+        Ruby runtime = applicationContext.getRuntime();
+		RubyClass proxyClass = (RubyClass)applicationContext.callMethod(runtime.getCurrentContext(), "getProxyClass");
+        if (proxyClass.isConstantDefined("BlazeDSConfig")) {
+        	Map<String,IRubyObject> config = net.stbbs.jruby.Util.convertRubyHash((RubyHash)proxyClass.getConstant("BlazeDSConfig"));
+        	Map<String,IRubyObject> remotingConfig = net.stbbs.jruby.Util.convertRubyHash((RubyHash)config.get("remoting"));
+        	if (remotingConfig != null) {
+        		if (remotingConfig.containsKey("endpoint_url")) {
+        			remotingEndpointURL = remotingConfig.get("endpoint_url").asString().getUnicodeValue();
+        			if (!remotingEndpointURL.startsWith("http://") && !remotingEndpointURL.startsWith("https://")) {
+        				remotingEndpointURL = BlazeDSSupport.ENDPOINT_URL_BASE + remotingEndpointURL;
+        			}
+        		}
+        		destinations = net.stbbs.jruby.Util.convertRubyHash((RubyHash)remotingConfig.get("destinations"));
+        	}
+        }
 
 		ChannelSettings csNonPolling = new ChannelSettings(AMF_CHANNELID);
-		String endpointURL = BlazeDSSupport.ENDPOINT_URL_BASE + BlazeDSSupport.DEFAULT_REMOTING_ENDPOINT_URL;
-		RubyClass proxyClass = (RubyClass)applicationContext.callMethod(applicationContext.getRuntime().getCurrentContext(), "getProxyClass");
-		if (proxyClass.isClassVarDefined(BlazeDSSupport.REMOTING_ENDPOINT_URL_CLASSVER_NAME)) {
-			endpointURL = proxyClass.getClassVar(BlazeDSSupport.REMOTING_ENDPOINT_URL_CLASSVER_NAME).asString().getUnicodeValue();
-			if (!endpointURL.startsWith("http://") && !endpointURL.startsWith("https://")) {
-				endpointURL = BlazeDSSupport.ENDPOINT_URL_BASE + endpointURL;
-			}
-		}
-		csNonPolling.setUri(endpointURL);
+		csNonPolling.setUri(remotingEndpointURL);
 		csNonPolling.setClientType("mx.messaging.channels.AMFChannel");
 		csNonPolling.setEndpointType("flex.messaging.endpoints.AMFEndpoint");
 		csNonPolling.addProperty("polling-enabled", "false");
@@ -220,21 +235,37 @@ public class JRubyMessageBrokerServlet  extends HttpServlet {
        msgService.registerAdapter("actionscript", "flex.messaging.services.messaging.adapters.ActionScriptAdapter");
        msgService.setDefaultAdapter("actionscript");
 
-       // Destinations
-       RubyHash destinations;
-       if (proxyClass.isClassVarDefined(BlazeDSSupport.DESTINATION_CLASSVAR_NAME)) {
-    	   destinations = (RubyHash)proxyClass.getClassVar(BlazeDSSupport.DESTINATION_CLASSVAR_NAME);
-       } else {
-    	   destinations = RubyHash.newHash(proxyClass.getRuntime());
-    	   // TODO: オートスキャン
-       }
+       broker.addFactory("JRubyFactory", new JRubyFactory(applicationContext));
 
-       for (Object objEntry : destinations.entrySet()) {
-    	   Map.Entry entry = (Map.Entry)objEntry;
-    	   String destinationId = ((IRubyObject)entry.getKey()).asString().getUnicodeValue();
-    	   Destination dest = service.createDestination(destinationId);
-    	   dest.setChannels(service.getDefaultChannels());
-    	   dest.addExtraProperty("applicationContext", applicationContext);
+       if (destinations != null) {
+	       for (Map.Entry<String,IRubyObject> entry : destinations.entrySet()) {
+	    	   String destinationId = entry.getKey();
+	    	   Map<String,IRubyObject> options = net.stbbs.jruby.Util.convertRubyHash(entry.getValue().convertToHash());
+	    	   Destination dest = service.createDestination(destinationId);
+	    	   ConfigMap props = new ConfigMap();
+	    	   props.addProperty("factory", "JRubyFactory");
+	    	   props.addProperty("source", options.containsKey("bean")? options.get("bean").asString().getUnicodeValue(): destinationId);
+	    	   if (options.containsKey("include_methods")) {
+	    		   ConfigMap im = new ConfigMap();
+	    		   for (IRubyObject methodName:net.stbbs.jruby.Util.convertRubyArray(options.get("include_methods").convertToArray())) {
+	    			   ConfigMap m = new ConfigMap();
+	    			   m.addProperty("name", methodName.asString().getUnicodeValue());
+	    			   im.addProperty("method", m);
+	    		   }
+	    		   props.addProperty("include-methods", im);
+	    	   }
+	    	   if (options.containsKey("exclude_methods")) {
+	    		   ConfigMap im = new ConfigMap();
+	    		   for (IRubyObject methodName:net.stbbs.jruby.Util.convertRubyArray(options.get("exclude_methods").convertToArray())) {
+	    			   ConfigMap m = new ConfigMap();
+	    			   m.addProperty("name", methodName.asString().getUnicodeValue());
+	    			   im.addProperty("method", m);
+	    		   }
+	    		   props.addProperty("exclude-methods", im);
+	    	   }
+	    	   dest.initialize(destinationId, props);
+	    	   dest.setChannels(service.getDefaultChannels());
+	       }
        }
     }
    

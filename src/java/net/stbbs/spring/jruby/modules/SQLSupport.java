@@ -99,7 +99,7 @@ public class SQLSupport extends DataSourceSupport {
 	public void x(IRubyObject self, IRubyObject[] args, Block block) {
 		// 引数が０の場合エラー
 		if (args.length < 1) {
-			throw self.getRuntime().newArgumentError("Method requires at least one argument.");
+			throw self.getRuntime().newArgumentError(args.length, 1);
 		}
 		
 		this.getJdbcTemplate().execute(args[0].asString().getUnicodeValue());
@@ -249,6 +249,11 @@ public class SQLSupport extends DataSourceSupport {
 			this.sqlRowSet = sqlRowSet;
 		}
 		
+		public static void onRegister(RubyModule module)
+		{
+			module.include(new IRubyObject[] {module.getRuntime().getModule("Enumerable")});
+		}
+
 		@JRubyMethod
 		public SqlRowProxy fetch(IRubyObject self, IRubyObject[] args, Block block)
 		{
@@ -266,25 +271,6 @@ public class SQLSupport extends DataSourceSupport {
 			}
 			sqlRowSet.beforeFirst();
 			return self;
-		}
-
-		@JRubyMethod
-		public RubyArray collect(IRubyObject self, IRubyObject[] args, Block block)
-		{
-			Ruby runtime = self.getRuntime();
-			RubyArray array = runtime.newArray();
-			if (!block.isGiven()) return array;
-			while (sqlRowSet.next()) {
-				IRubyObject obj = block.call(self.getRuntime().getCurrentContext(),
-						new IRubyObject[] {JavaEmbedUtils.javaToRuby(runtime, new SqlRowProxy(sqlRowSet))});
-				Object jobj = JavaEmbedUtils.rubyToJava(runtime, obj, null);
-				if (jobj instanceof SqlRowProxy) {	// ブロックの評価結果がSqlRowだったら to_hashを適用する
-					obj = obj.callMethod(runtime.getCurrentContext(), "to_hash");
-				}
-				array.add(obj);
-			}
-			sqlRowSet.beforeFirst();
-			return array;
 		}
 
 		@JRubyMethod
@@ -346,6 +332,11 @@ public class SQLSupport extends DataSourceSupport {
 			overriddens = new HashMap<String,IRubyObject>();
 		}
 		
+		public static void onRegister(RubyModule module)
+		{
+			module.include(new IRubyObject[] {module.getRuntime().getModule("Enumerable")});
+		}
+
 		@JRubyMethod(name="[]", required=1)
 		public Object getValue(IRubyObject self, IRubyObject[] args, Block block)
 		{
@@ -379,6 +370,20 @@ public class SQLSupport extends DataSourceSupport {
 			overriddens.put(fieldName.toLowerCase(), args[1]);
 		}
 
+		@JRubyMethod
+		public IRubyObject each(IRubyObject self, IRubyObject[] args, Block block)
+		{
+			if (!block.isGiven()) return self;
+			Ruby runtime = self.getRuntime();
+
+			RubyHash hash = this.to_hash(self, null);
+			IRubyObject[] keys = Util.convertRubyArray(hash.keys());
+			for (IRubyObject key:keys) {
+				block.call(self.getRuntime().getCurrentContext(), new IRubyObject[] {key, hash.aref(key)});
+			}
+			return self;
+		}
+
 		@JRubyMethod(required=1,optional=1)
 		public Object method_missing(IRubyObject self, IRubyObject[] args, Block block)
 		{
@@ -404,20 +409,14 @@ public class SQLSupport extends DataSourceSupport {
 			return to_hash(self, args, block);
 		}
 
-		@JRubyMethod(optional=1)
-		public RubyHash to_hash(IRubyObject self, IRubyObject[] args, Block block)
+		protected RubyHash to_hash(IRubyObject self, String[] names)
 		{
 			Ruby runtime = self.getRuntime();
 			Set<String> columnNames = new HashSet<String>();
 			
-			if (args.length > 0) {
-				RubyArray givenNames = (RubyArray)args[0];
-				for (Object o:givenNames) {
-					String name = o.toString();
-					if (o instanceof IRubyObject) {
- 						name = ((IRubyObject)o).asString().getUnicodeValue().toLowerCase();
-					}
-					columnNames.add(name);
+			if (names != null) {
+				for (String name:names) {
+					columnNames.add(name.toLowerCase());
 				}
 			} else {
 				for (String columnName:sqlRowProxy.getColumnNames()) {
@@ -438,6 +437,24 @@ public class SQLSupport extends DataSourceSupport {
 				}
 			}
 			return assoc;
+			
+		}
+		
+		@JRubyMethod(optional=1)
+		public RubyHash to_hash(IRubyObject self, IRubyObject[] args, Block block)
+		{
+			Ruby runtime = self.getRuntime();
+			Set<String> columnNames = new HashSet<String>();
+			
+			String[] names = null;
+			if (args.length > 0) {
+				IRubyObject[] givenNames = Util.convertRubyArray(args[0].convertToArray());
+				names = new String[givenNames.length];
+				for (int i = 0; i < names.length; i++)  {
+					names[i] = givenNames[i].asString().getUnicodeValue().toLowerCase();
+				}
+			}
+			return to_hash(self, names);
 		}
 	}
 	

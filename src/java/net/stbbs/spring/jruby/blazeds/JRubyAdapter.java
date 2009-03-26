@@ -91,7 +91,7 @@ public class JRubyAdapter extends ServiceAdapter {
 		RemotingMessage rm = (RemotingMessage)message;
 		RemotingDestination rd = (RemotingDestination)this.getDestination();
 		String destination = message.getDestination();
-		IRubyObject applicationContext = (IRubyObject)rd.getExtraProperty("applicationContext");
+		//IRubyObject applicationContext = (IRubyObject)rd.getExtraProperty("applicationContext");
 		String operation = rm.getOperation();
 /*		RubyProc operationProc = null;
 		synchronized (rd) {
@@ -113,25 +113,24 @@ public class JRubyAdapter extends ServiceAdapter {
 			}
 		}
 */		
-		Ruby runtime = applicationContext.getRuntime();
-		IRubyObject ro = applicationContext.callMethod(runtime.getCurrentContext(), "allocateProxyObject");
-		IRubyObject[] args = new IRubyObject[params.size()];
-		int i = 0;
-		for (Object param:params) {
-			args[i++] = Util.convertJavaToRuby(runtime, param);
-		}
-		ThreadContext context = runtime.getCurrentContext();
+		Object bean = rd.getFactoryInstance().lookup(); 
 		
 		try {
-			IRubyObject rbean = ro.callMethod(context, destination);
-			Object jo = JavaEmbedUtils.rubyToJava(runtime, rbean, null);
-			if (!(jo instanceof IRubyObject)) {
-	            Class c = (Class)jo.getClass();
+			if (!(bean instanceof IRubyObject)) {
+	            Class c = (Class)bean.getClass();
 	            MethodMatcher methodMatcher = rd.getMethodMatcher();
 	            Method method = methodMatcher.getMethod(c, operation, params);
-	            return method.invoke(jo, params.toArray());
+	            return method.invoke(bean, params.toArray());
 			}
 			//else 
+			IRubyObject rbean = (IRubyObject)bean;
+			Ruby runtime = rbean.getRuntime();
+			IRubyObject[] args = new IRubyObject[params.size()];
+			int i = 0;
+			ThreadContext context = runtime.getCurrentContext();
+			for (Object param:params) {
+				args[i++] = Util.convertJavaToRuby(runtime, param);
+			}
 			IRubyObject result = rbean.callMethod(context, operation, args);
 			return net.stbbs.jruby.Util.convertRubyToJava(result);	// Ruby->Javaのディープコンバートをする
 		}

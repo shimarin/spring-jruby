@@ -1,0 +1,16 @@
+include ApplicationContextSupport
+include URLConnectionSupport if defined? URLConnectionSupport
+include TransactionSupport if defined? TransactionSupport
+include SQLSupport if defined? SQLSupport
+include HibernateSupport if defined? HibernateSupport
+include HibernateAnnotationsSupport if defined? HibernateAnnotationsSupport
+include MailSupport if defined? MailSupport
+include VelocitySupport if defined? VelocitySupport
+include GraphicsSupport if defined? GraphicsSupport
+include DbUnitSupport if defined? DbUnitSupport
+include POISupport if defined? POISupport
+include MIDISupport if defined? MIDISupport
+include SSHSupport if defined? SSHSupport
+include Dom4jSupport if defined? Dom4jSupport
+include RequestContextSupport if defined? RequestContextSupport
+include PHPRPCSupport if defined? PHPRPCSupport

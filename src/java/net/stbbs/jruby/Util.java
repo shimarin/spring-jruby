@@ -28,6 +28,7 @@ import org.jruby.anno.JRubyMethod;
 import org.jruby.anno.JRubyModule;
 import org.jruby.exceptions.RaiseException;
 import org.jruby.javasupport.JavaEmbedUtils;
+import org.jruby.javasupport.JavaObject;
 import org.jruby.javasupport.JavaUtil;
 import org.jruby.runtime.Arity;
 import org.jruby.runtime.Block;
@@ -135,11 +136,12 @@ public class Util {
 		return getOptionDouble(assocList, name, null);
 	}
 
-	public <T> T getOption(RubyHash assocList, String name, T defaultValue)
+	public <T> T getOption(RubyHash hash, String name, T defaultValue)
 	{
-		IRubyObject val = getOption(assocList, name);
+		if (hash == null) return defaultValue;
+		IRubyObject val = getOption(hash, name);
 		if (val == null) return defaultValue;
-		return (T)JavaEmbedUtils.rubyToJava(assocList.getRuntime(), val, Object.class);
+		return (T)JavaEmbedUtils.rubyToJava(hash.getRuntime(), val, Object.class);
 	}
 
 	public static Date getOptionDate(RubyHash assocList, String name, Date defaultValue)
@@ -149,19 +151,24 @@ public class Util {
 		return ((RubyTime)val).getJavaDate();
 	}
 	
-	public static IRubyObject getOption(RubyHash assocList, String name)
+	public static float[] getOptionFloatArray(RubyHash hash, String name)
 	{
-		Ruby runtime = assocList.getRuntime();
-		ThreadContext ctx = runtime.getCurrentContext();
-		IRubyObject val = null;
-		RubyString keyByString = RubyString.newUnicodeString(runtime, name);
-		RubySymbol keyBySymbol = RubySymbol.newSymbol(runtime, name);
-		if (assocList.callMethod(ctx, "has_key?", keyByString).isTrue()) {
-			val = assocList.callMethod(ctx, "[]", keyByString);
-		} else if (assocList.callMethod(ctx, "has_key?", keyBySymbol).isTrue()) {
-			val = assocList.callMethod(ctx, "[]", keyBySymbol);
+		IRubyObject val = getOption(hash, name);
+		if (val == null) return null;
+		IRubyObject[] array = Util.convertRubyArray(val.convertToArray());
+		float[] result = new float[array.length];
+		for (int i = 0; i < result.length; i++) {
+			result[i] = (float)array[i].convertToFloat().getDoubleValue();
 		}
-		return val;
+		return result;
+	}
+
+	
+	public static IRubyObject getOption(RubyHash hash, String name)
+	{
+		if (hash == null) return null;
+		Map<String,IRubyObject> map = Util.convertRubyHash(hash);
+		return map.get(name);
 	}
 
 	public static Arity createArityFromAnnotation(JRubyMethod anno) {
@@ -381,13 +388,16 @@ public class Util {
 		return newModule;
 	}
 	
-	static public void registerDecorator(final Ruby runtime, final Class decoratorClass)
+	static public RubyModule[] registerDecorator(final Ruby runtime, final Class decoratorClass)
 	{
 		Decorator d = (Decorator)decoratorClass.getAnnotation(Decorator.class);
-		if (d == null) return;
+		if (d == null) return null;
+		RubyModule[] modules = new RubyModule[d.value().length];
+		int i = 0;
 		for (Class target:d.value()) {
-			registerDecorator(runtime, target.getName(), decoratorClass);
+			modules[i++] = registerDecorator(runtime, target.getName(), decoratorClass);
 		}
+		return modules;
 	}
 	
 	static public RubyModule getJavaClassProxy(final Ruby runtime, String javaClassName)
@@ -402,7 +412,26 @@ public class Util {
 		return getJavaClassProxy(runtime, clazz.getName());
 	}
 	
-	static public void registerDecorator(final Ruby runtime, RubyModule module, final Class decoratorClass)
+	static public Object invokeJavaImplementedRubyMethod(
+			Method method, Object instance, IRubyObject self, IRubyObject[] args , Block block)
+	{
+		Ruby runtime = self.getRuntime();
+		try {
+			return method.invoke(instance, self, args, block);
+		} catch (IllegalArgumentException e) {
+			throw RaiseException.createNativeRaiseException(runtime, e);
+		} catch (IllegalAccessException e) {
+			throw RaiseException.createNativeRaiseException(runtime, e);
+		} catch (InvocationTargetException e) {
+			Throwable te = e.getTargetException();
+			if (te instanceof RuntimeException) throw (RuntimeException)te;
+			if (te instanceof IOException) throw runtime.newIOErrorFromException((IOException)te);
+			throw RaiseException.createNativeRaiseException(runtime, te);
+		}
+		
+	}
+	
+	static public RubyModule registerDecorator(final Ruby runtime, RubyModule module, final Class decoratorClass)
 	{
 		Method[] methods = decoratorClass.getMethods();
 		for (final Method m:methods) {
@@ -412,41 +441,72 @@ public class Util {
 			String methodName = m.getName();
 			if (mm.name().length > 0) methodName = mm.name()[0]; 
 			final Arity arity = createArityFromAnnotation(mm);
-			module.defineMethod(methodName, new Callback(){
-				public IRubyObject execute(IRubyObject self, IRubyObject[] args, Block block) {
-					try {
+			if (methodName.equals("initialize")) {
+				module.defineMethod(methodName, new Callback(){
+					public IRubyObject execute(IRubyObject self, IRubyObject[] args, Block block) {
+						Object instance;
+						try {
+							instance = decoratorClass.newInstance();
+						} catch (InstantiationException e) {
+							throw RaiseException.createNativeRaiseException(runtime, e);
+						} catch (IllegalAccessException e) {
+							throw RaiseException.createNativeRaiseException(runtime, e);
+						}
+						Object rst = invokeJavaImplementedRubyMethod(m, instance, self, args, block);
+						if (rst == null) {
+							throw runtime.newRuntimeError("initialize() returned null object");
+						}
+						self.callMethod(runtime.getCurrentContext(), "java_object=", new IRubyObject[] { JavaObject.wrap(runtime, rst)});
+						return self;
+					}
+	
+					public Arity getArity() {
+						return arity;
+					}
+				});
+			} else {
+				module.defineMethod(methodName, new Callback(){
+					public IRubyObject execute(IRubyObject self, IRubyObject[] args, Block block) {
 						Object instance = getDecoratorObject(runtime, self, decoratorClass);
-						Object rst = m.invoke(instance, self, args, block);
+						Object rst = invokeJavaImplementedRubyMethod(m, instance, self, args, block);
 						if (rst instanceof IRubyObject) return (IRubyObject)rst;
 						if (rst instanceof String) return RubyString.newUnicodeString(runtime, (String)rst);
 						return JavaEmbedUtils.javaToRuby(runtime, rst);
-					} catch (IllegalArgumentException e) {
-						throw RaiseException.createNativeRaiseException(runtime, e);
-					} catch (IllegalAccessException e) {
-						throw RaiseException.createNativeRaiseException(runtime, e);
-					} catch (InvocationTargetException e) {
-						Throwable te = e.getTargetException();
-						if (te instanceof RuntimeException) throw (RuntimeException)te;
-						if (te instanceof IOException) throw runtime.newIOErrorFromException((IOException)te);
-						throw RaiseException.createNativeRaiseException(runtime, te);
 					}
-				}
-
-				public Arity getArity() {
-					return arity;
-				}
-
-			});
+	
+					public Arity getArity() {
+						return arity;
+					}
+				});
+			}
 		}
+		try {
+			Method m = decoratorClass.getMethod("onRegister", RubyModule.class);
+			if (Modifier.isStatic(m.getModifiers()) && Modifier.isPublic(m.getModifiers()) ){
+				m.invoke(null, module);
+			}			
+		} catch (SecurityException e) {
+			runtime.newSecurityError(e.getMessage());
+		} catch (NoSuchMethodException e) {
+			// do nothing
+		} catch (IllegalArgumentException e) {
+			throw RaiseException.createNativeRaiseException(runtime, e);
+		} catch (IllegalAccessException e) {
+			throw RaiseException.createNativeRaiseException(runtime, e);
+		} catch (InvocationTargetException e) {
+			throw RaiseException.createNativeRaiseException(runtime, e.getTargetException());
+		}
+		return module;
 	}
 	
-	static public void registerDecorator(final Ruby runtime, String javaClassName, final Class decoratorClass)
+	static public RubyModule registerDecorator(final Ruby runtime, String javaClassName, final Class decoratorClass)
 	{
-		registerDecorator(runtime, getJavaClassProxy(runtime, javaClassName), decoratorClass);
+		RubyModule module = registerDecorator(runtime, getJavaClassProxy(runtime, javaClassName), decoratorClass);
 		// Stringには特別な扱いをする
 		if (javaClassName.equals("java.lang.String")) {
 			registerDecorator(runtime, runtime.getString(), decoratorClass);
 		}
+		return module;
 	}
 
 	static public void registerDecorator(final Ruby runtime, Class targetClass, final Class decoratorClass)
@@ -473,6 +533,21 @@ public class Util {
 		return result;
 	}
 	
+	/**
+	 * RubyArrayを Javaの IRubyObject[]に変換する
+	 * @param hash
+	 * @return
+	 */
+	static public IRubyObject[] convertRubyArray(RubyArray array)
+	{
+		if (array == null) return null;
+		IRubyObject[] jarray = new IRubyObject[array.getLength()];
+		for (int i = 0; i < jarray.length; i++) {
+			jarray[i] = array.at(array.getRuntime().newFixnum(i));
+		}
+		return jarray;
+	}
+	
 	static public void setValueToBean(Object obj, RubyHash hash)
 	{
 		Ruby runtime = hash.getRuntime();
@@ -496,15 +571,14 @@ public class Util {
 				Ruby runtime = self.getRuntime();
 				if (args.length > 1) {
 					// もし第2引数が与えられているのであれば、それは必須クラス指定
-					RubyArray depOn;
+					IRubyObject[] depOn;
 					if (args[1] instanceof RubyArray) {
-						depOn = (RubyArray)args[1];
+						depOn = Util.convertRubyArray(args[1].convertToArray());
 					} else {
-						depOn = runtime.newArray();
-						depOn.append(args[1]);
+						depOn = new IRubyObject[] { args[1] };
 					}
-					for (int i = 1; i < depOn.getLength(); i++) {
-						String className = depOn.at(RubyNumeric.int2fix(runtime, i)).asString().getUnicodeValue();
+					for (IRubyObject ro:depOn) {
+						String className = ro.asString().getUnicodeValue();
 						try {
 							Class.forName(className);
 						}

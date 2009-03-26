@@ -1,28 +1,11 @@
-include ApplicationContextSupport
-include URLConnectionSupport if defined? URLConnectionSupport
-include TransactionSupport if defined? TransactionSupport
-include SQLSupport if defined? SQLSupport
-include HibernateSupport if defined? HibernateSupport
-include HibernateAnnotationsSupport if defined? HibernateAnnotationsSupport
-include MailSupport if defined? MailSupport
-include VelocitySupport if defined? VelocitySupport
+load "net/stbbs/spring/jruby/instanceEvalServlet.rb"
 
-if defined? GraphicsSupport then
-	include GraphicsSupport
-	include_class "java.awt.Color"
-	include_class "java.awt.BasicStroke"
-end 
-
-include DbUnitSupport if defined? DbUnitSupport
-include POISupport if defined? POISupport
-include MIDISupport if defined? MIDISupport
-include SSHSupport if defined? SSHSupport
-include Dom4jSupport if defined? Dom4jSupport
-include RequestContextSupport if defined? RequestContextSupport
-include PHPRPCSupport if defined? PHPRPCSupport
-
-if defined? BlazeDSSupport then
-	include BlazeDSSupport
-	remoting_endpoint_url "/messagebroker/amf"
-	destination :myBean
-end
+BlazeDSConfig = {
+	:remoting=>{
+		:endpoint_url=>"/messagebroker/amf",
+		:destinations=>{
+			:myBeaso=>{:bean=>"myBean", :exclude_methods=>[:hoge]},
+			:myBean2=>{:bean=>"myBean2", :exclude_methods=>[:honya]}
+		}
+	}
+}

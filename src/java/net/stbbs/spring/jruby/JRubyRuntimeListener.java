@@ -8,7 +8,6 @@ import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
 import javax.servlet.ServletException;
 
-import net.stbbs.jruby.Decorator;
 import net.stbbs.jruby.Util;
 import net.stbbs.spring.jruby.modules.ApplicationContextSupport;
 import net.stbbs.spring.jruby.modules.ApplicationContextSupport.ProxyClassCallback;
@@ -19,12 +18,13 @@ import org.jruby.Ruby;
 import org.jruby.RubyClass;
 import org.jruby.RubyKernel;
 import org.jruby.RubyProc;
-import org.jruby.anno.JRubyMethod;
 import org.jruby.exceptions.RaiseException;
 import org.jruby.javasupport.JavaEmbedUtils;
+import org.jruby.runtime.Arity;
 import org.jruby.runtime.Block;
 import org.jruby.runtime.ThreadContext;
 import org.jruby.runtime.builtin.IRubyObject;
+import org.jruby.runtime.callback.Callback;
 import org.springframework.context.ApplicationContext;
 import org.springframework.core.io.Resource;
 import org.springframework.web.context.WebApplicationContext;
@@ -104,8 +104,6 @@ public class JRubyRuntimeListener implements ServletContextListener {
 			logger.info("Rubyランタイム初期化スクリプト " + resource.getFilename() + " をロードしました");
 		}
 
-		Util.registerDecorator(ruby, ScriptEvalProxyDecorator.class);
-
 		applicationContext.callMethod(context, "setProxyClassCallback", JavaEmbedUtils.javaToRuby(ruby, 
 				new WebApplicationProxyClassCallback(ruby, wac, classScript)));
 		
@@ -120,28 +118,76 @@ public class JRubyRuntimeListener implements ServletContextListener {
 	public static class WebApplicationProxyClassCallback implements ProxyClassCallback {
 
 		private Ruby runtime;
-		private WebApplicationContext wac;
+		private WebApplicationContext applicationContext;
 		private String initScript;
 		private long initScriptTime = 0;
+		private RubyClass scriptedBeanProxyClass;
 
 		public WebApplicationProxyClassCallback(Ruby runtime, WebApplicationContext wac, String initScript)
 		{
 			this.runtime = runtime;
-			this.wac = wac;
+			this.applicationContext = wac;
 			this.initScript = initScript;
+			
+			// RubyスクリプトをBeanにみせかけて実行するProxyクラスの定義
+			this.scriptedBeanProxyClass = runtime.defineClass("ScriptedBeanProxy", runtime.getObject(), runtime.getObject().getAllocator());
+			this.scriptedBeanProxyClass.defineMethod("method_missing", new Callback() {
+				public IRubyObject execute(IRubyObject self, IRubyObject[] args, Block block)
+				{
+					Ruby runtime = self.getRuntime();
+					ThreadContext context = runtime.getCurrentContext();
+					if (args.length < 1) {
+						runtime.newArgumentError(0, 1);
+					}
+					String methodName = args[0].asString().getUnicodeValue();
+					final IRubyObject[] passingArgs = new IRubyObject[args.length - 1];
+					for (int i = 1; i < args.length; i++) passingArgs[i - 1] = args[i];
+
+					String beanName = self.getInstanceVariable("@beanName").asString().getUnicodeValue();
+					String scriptName = "WEB-INF/spring-jruby/" + beanName + "/" + methodName + ".rb";
+					Resource resource = applicationContext.getResource(scriptName);
+					if (resource == null || !resource.exists()) {
+						// もし該当するスクリプトがなければ Java Beanのほうを呼び出す
+						if (applicationContext.containsBean(beanName)) {
+							IRubyObject bean = JavaEmbedUtils.javaToRuby(runtime, applicationContext.getBean(beanName));
+							return bean.callMethod(context, methodName, passingArgs);
+						}
+						// else
+						throw runtime.newNoMethodError("No such method " + methodName + " in bean " + beanName, methodName, runtime.getNil());
+					}
+					
+					// スクリプトを読み出す
+					IRubyObject script = JavaEmbedUtils.javaToRuby(runtime, resource).callMethod(context, "read");
+					IRubyObject proxyObject = self.getInstanceVariable("@proxyObject");
+					IRubyObject ro = ApplicationContextSupport.scopedInstanceEval(proxyObject, script);
+					if (!(ro instanceof RubyProc)) return ro; // もし結果が Procオブジェクトでない場合はそれをそのまま返す
+					// else Procオブジェクトを引数付きでコールした結果を返す
+					final RubyProc proc = (RubyProc)ro;
+					return proc.call(passingArgs);
+				}
+
+				public Arity getArity() {
+					return Arity.ONE_REQUIRED;
+				}
+				
+			});
 		}
 		
 		public IRubyObject getScriptedBeanProxy(IRubyObject self, String beanName) {
-			Set paths = wac.getServletContext().getResourcePaths("/WEB-INF/spring-jruby/" + beanName);
+			Set paths = applicationContext.getServletContext().getResourcePaths("/WEB-INF/spring-jruby/" + beanName);
 			if (paths != null && !paths.isEmpty()) {
-				return JavaEmbedUtils.javaToRuby(runtime, new ScriptEvalProxy(self, wac, beanName));
+				Ruby runtime = self.getRuntime();
+				IRubyObject scriptedBeanProxy = runtime.getClass("ScriptedBeanProxy").allocate();
+				scriptedBeanProxy.setInstanceVariable("@beanName", runtime.newString(beanName));
+				scriptedBeanProxy.setInstanceVariable("@proxyObject", self);
+				return scriptedBeanProxy;
 			}
 			
 			return null;
 		}
 
 		public boolean isRefreshNeeded() throws IOException {
-			Resource r = wac.getResource(initScript);
+			Resource r = applicationContext.getResource(initScript);
 			if (r == null || !r.exists()) return false;
 			// else
 			long lastModified = r.lastModified();
@@ -152,8 +198,10 @@ public class JRubyRuntimeListener implements ServletContextListener {
 		}
 
 		public void onDefined(RubyClass newProxyClass) {
-			Resource r = wac.getResource(initScript);
-			if (r == null || !r.exists()) return;
+			Resource r = applicationContext.getResource(initScript);
+			if (r == null || !r.exists()) {
+				r = applicationContext.getResource("classpath:net/stbbs/spring/jruby/InstanceEvalServlet.rb");
+			}
 			
 			Ruby runtime = newProxyClass.getRuntime();
 			ThreadContext context = runtime.getCurrentContext();
@@ -162,71 +210,6 @@ public class JRubyRuntimeListener implements ServletContextListener {
 			logger.info("リクエスト処理クラス初期化スクリプト " + this.initScript + " をロードしました");
 		}
 		
-	}
-	
-	public static class ScriptEvalProxy {
-		private IRubyObject proxyObject;
-		private ApplicationContext applicationContext;
-		private String beanName;
-		
-		public ScriptEvalProxy(IRubyObject proxyObject, ApplicationContext applicationContext, String beanName)
-		{
-			this.proxyObject = proxyObject;
-			this.applicationContext = applicationContext;
-			this.beanName = beanName;
-		}
-		
-		public IRubyObject getProxyObject()
-		{
-			return proxyObject;
-		}
-		public String getBeanName()
-		{
-			return beanName;
-		}
-		public ApplicationContext getApplicationContext()
-		{
-			return applicationContext;
-		}
-		
-	}
-	@Decorator(ScriptEvalProxy.class)
-	public static class ScriptEvalProxyDecorator {
-		private ScriptEvalProxy sep;
-		public ScriptEvalProxyDecorator(ScriptEvalProxy sep)
-		{
-			this.sep = sep;
-		}
-		
-		@JRubyMethod
-		public IRubyObject method_missing(IRubyObject self, IRubyObject[] args, Block block) throws IOException
-		{
-			Ruby runtime = self.getRuntime();
-			ThreadContext context = runtime.getCurrentContext();
-			if (args.length < 1) {
-				runtime.newArgumentError(0, 1);
-			}
-			String methodName = args[0].asString().getUnicodeValue();
-			final IRubyObject[] passingArgs = new IRubyObject[args.length - 1];
-			for (int i = 1; i < args.length; i++) passingArgs[i - 1] = args[i];
-
-			String scriptName = "WEB-INF/spring-jruby/" + sep.getBeanName() + "/" + methodName + ".rb";
-			Resource resource = sep.getApplicationContext().getResource(scriptName);
-			if (resource == null || !resource.exists()) {
-				// もし該当するスクリプトがなければ Java Beanのほうを呼び出す
-				IRubyObject bean = JavaEmbedUtils.javaToRuby(runtime, sep.getApplicationContext()).callMethod(context, sep.getBeanName());
-				return bean.callMethod(context, methodName, passingArgs);
-			}
-			
-			// スクリプトを読み出す
-			IRubyObject script = JavaEmbedUtils.javaToRuby(runtime, resource).callMethod(context, "read");
-			IRubyObject ro = ApplicationContextSupport.scopedInstanceEval(sep.getProxyObject(), script);
-			if (!(ro instanceof RubyProc)) return ro; // もし結果が Procオブジェクトでない場合はそれをそのまま返す
-			// else Procオブジェクトを引数付きでコールした結果を返す
-			final RubyProc proc = (RubyProc)ro;
-			return proc.call(passingArgs);
-		}
-
 	}
 
 }

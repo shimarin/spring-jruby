@@ -24,6 +24,31 @@ public class DOMSupport {
 	{
 		Ruby runtime = module.getRuntime();
 		Util.registerDecorator(runtime, NodeDecorator.class);
+		Util.registerDecorator(runtime, NodeListDecorator.class);
+	}
+	
+	@Decorator(NodeList.class)
+	public static class NodeListDecorator {
+		NodeList nodeList;
+		public NodeListDecorator(NodeList nodeList)
+		{
+			this.nodeList = nodeList;
+		}
+		
+		public static void onRegister(RubyModule module)
+		{
+			module.include(new IRubyObject[] {module.getRuntime().getModule("Enumerable")});
+		}
+
+		@JRubyMethod
+		public IRubyObject each(IRubyObject self, IRubyObject[] args, Block block)
+		{
+			Ruby runtime = self.getRuntime();
+			for (int i = 0; i < nodeList.getLength(); i++) {
+				block.call(runtime.getCurrentContext(), new IRubyObject[] {JavaEmbedUtils.javaToRuby(runtime, nodeList.item(i))});
+			}
+			return self;
+		}
 	}
 
 	@Decorator(Node.class)
@@ -35,43 +60,35 @@ public class DOMSupport {
 			this.node = node;
 			this.factory = XPathFactory.newInstance();
 		}
-
+		
 		@JRubyMethod
 		public IRubyObject collect(IRubyObject self, IRubyObject[] args, Block block) throws XPathExpressionException
 		{
 			Ruby runtime = self.getRuntime();
-			NodeList nl;
-			if (args.length > 0) {
-				XPathExpression expr = factory.newXPath().compile(args[0].asString().getUnicodeValue());
-				nl =  (NodeList)expr.evaluate(node, XPathConstants.NODESET);
-			} else {
-				nl = node.getChildNodes();
-			}
-			if (block == null || !block.isGiven()) return runtime.getNil();
-			RubyArray array = runtime.newArray();
-			for (int i = 0; i < nl.getLength(); i++) {
-				IRubyObject ro = block.call(runtime.getCurrentContext(), new IRubyObject[] {JavaEmbedUtils.javaToRuby(runtime, nl.item(i))});
-				array.append(ro);
-			}
-			return array;
+			NodeList nl = select(self, args, block);
+			return JavaEmbedUtils.javaToRuby(runtime, nl).callMethod(runtime.getCurrentContext(), "collect", block);
 		}
 
 		@JRubyMethod
 		public IRubyObject each(IRubyObject self, IRubyObject[] args, Block block) throws XPathExpressionException
 		{
 			Ruby runtime = self.getRuntime();
+			NodeList nl = select(self, args, block);
+			JavaEmbedUtils.javaToRuby(runtime, nl).callMethod(runtime.getCurrentContext(), "each", block);
+			return self;
+		}
+		
+		@JRubyMethod
+		public NodeList select(IRubyObject self, IRubyObject[] args, Block block) throws XPathExpressionException
+		{
+			Ruby runtime = self.getRuntime();
 			NodeList nl;
 			if (args.length > 0) {
 				XPathExpression expr = factory.newXPath().compile(args[0].asString().getUnicodeValue());
-				nl =  (NodeList)expr.evaluate(node, XPathConstants.NODESET);
+				return (NodeList)expr.evaluate(node, XPathConstants.NODESET);
 			} else {
-				nl = node.getChildNodes();
+				return node.getChildNodes();
 			}
-			if (block == null || !block.isGiven()) return runtime.getNil();
-			for (int i = 0; i < nl.getLength(); i++) {
-				block.call(runtime.getCurrentContext(), new IRubyObject[] {JavaEmbedUtils.javaToRuby(runtime, nl.item(i))});
-			}
-			return self;
 		}
 
 		@JRubyMethod(name="[]", required=1)
