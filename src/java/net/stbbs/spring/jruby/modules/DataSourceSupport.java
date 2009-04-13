@@ -3,7 +3,6 @@ package net.stbbs.spring.jruby.modules;
 import javax.sql.DataSource;
 
 import org.jruby.Ruby;
-import org.jruby.RubyString;
 import org.jruby.javasupport.JavaEmbedUtils;
 import org.jruby.runtime.builtin.IRubyObject;
 
@@ -13,8 +12,7 @@ public abstract class DataSourceSupport {
 	
 	public static DataSource getDataSource(IRubyObject self, Ruby runtime)
 	{
-		IRubyObject c = ApplicationContextSupport.evalWithApplicationContextBinding(self, "dataSource");
-		return  (DataSource)JavaEmbedUtils.rubyToJava(runtime, c, DataSource.class);
+		return ApplicationContextSupport.getBean(self, "dataSource");
 	}
 
 	public static DataSource getDataSource(IRubyObject self)

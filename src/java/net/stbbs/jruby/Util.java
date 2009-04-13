@@ -32,7 +32,6 @@ import org.jruby.javasupport.JavaObject;
 import org.jruby.javasupport.JavaUtil;
 import org.jruby.runtime.Arity;
 import org.jruby.runtime.Block;
-import org.jruby.runtime.ThreadContext;
 import org.jruby.runtime.builtin.IRubyObject;
 import org.jruby.runtime.callback.Callback;
 import org.jruby.util.KCode;
@@ -178,81 +177,6 @@ public class Util {
         return Arity.createArity(anno.required());
     }
 	
-	static private Map<Class,Object> getClassAndInstanceMap(final Ruby runtime, IRubyObject self, final Class clazz, String instanceVaariableName)
-	{
-		IRubyObject rmap = self.getInstanceVariable(instanceVaariableName);
-		Map<Class,Object> jmap = rmap != null? (Map<Class, Object>) JavaEmbedUtils.rubyToJava(runtime, rmap, Map.class) : null; 
-		if (jmap == null) {
-			jmap = new HashMap<Class,Object>();
-			self.setInstanceVariable(instanceVaariableName, JavaEmbedUtils.javaToRuby(runtime, jmap));
-		}
-		return jmap;
-	}
-	
-	static private Object getModuleObject(final Ruby runtime, IRubyObject self, final Class moduleClass)
-	{
-		synchronized (self) {
-			Map<Class,Object> modmap = getClassAndInstanceMap(runtime, self, moduleClass, "@_java_module_objects"); 
-			Object modobj = modmap.get(moduleClass);
-			if (modobj == null) {
-				modobj = instantiateObjectUsingAppropriateConstructor(runtime, moduleClass, self);
-				modmap.put(moduleClass, modobj);
-			}
-			return modobj;
-		}
-	}
-	
-	static private Object instantiateObjectUsingAppropriateConstructor(Ruby runtime, Class clazz, Object target)
-	{
-		Class targetClass = target.getClass();
-		// インスタンス化に使用するコンストラクタの候補を列挙する
-		Constructor[] ctors = clazz.getConstructors();
-		Constructor[] candidates = new Constructor[5];
-		for (Constructor ctor:ctors) {
-			if ((ctor.getModifiers() & Modifier.PUBLIC) == 0) continue;
-			Class[] types = ctor.getParameterTypes();
-			if (types.length == 0) candidates[4] = ctor;
-			else if (types.length == 2) {
-				if (types[0].isAssignableFrom(Ruby.class) && types[1].isAssignableFrom(targetClass)) {
-					candidates[0] = ctor;
-				} else if (types[0].isAssignableFrom(targetClass) && types[1].isAssignableFrom(Ruby.class)) {
-					candidates[1] = ctor;
-				}
-			} else if (types.length == 1) {
-				if (types[0].isAssignableFrom(targetClass)) candidates[2] = ctor;
-				else if (types[0].isAssignableFrom(Ruby.class)) candidates[3] = ctor;
-			}
-		}
-		
-		Object instance;
-		try {
-			if (candidates[0] != null) {
-				instance = candidates[0].newInstance(runtime, target);
-			} else if (candidates[1] != null) {
-				instance = candidates[1].newInstance(target, runtime);
-			} else if (candidates[2] != null) {
-				instance = candidates[2].newInstance(target);
-			} else if (candidates[3] != null) {
-				instance = candidates[3].newInstance(runtime);
-			} else if (candidates[4] != null) {
-				instance = candidates[4].newInstance();
-			} else {
-				throw runtime.newNotImplementedError("No any suitable constructor is defined on " + clazz.getName());
-			}
-		} catch (InstantiationException e) {
-			throw RaiseException.createNativeRaiseException(runtime, e);
-		} catch (IllegalAccessException e) {
-			throw RaiseException.createNativeRaiseException(runtime, e);
-		} catch (SecurityException e) {
-			throw RaiseException.createNativeRaiseException(runtime, e);
-		} catch (IllegalArgumentException e) {
-			throw RaiseException.createNativeRaiseException(runtime, e);
-		} catch (InvocationTargetException e) {
-			throw RaiseException.createNativeRaiseException(runtime, e.getTargetException());
-		}
-		return instance;
-	}
-	
 	static private Object getDecoratorObject(final Ruby runtime, IRubyObject self, final Class decoratorClass)
 	{
 		synchronized (self) {
@@ -285,68 +209,23 @@ public class Util {
 
 	static public RubyModule registerModule(final Ruby runtime, final Class moduleClass)
 	{
-		/*
-		NecessaryClasses nc = (NecessaryClasses)moduleClass.getAnnotation(NecessaryClasses.class);
-		if (nc != null) {
-			for (String className:nc.value()) {
-				try {
-					Class.forName(className);
-				}
-				catch (ClassNotFoundException ex) {
-					return null;	// 必要なクラスのひとつが見つからなかった
-				}
-			}
-		}
-		*/
 		String moduleName = getShortName(moduleClass.getName());
 		JRubyModule rm = (JRubyModule) moduleClass.getAnnotation(JRubyModule.class);
 		if (rm != null && rm.name().length > 0) {
 			moduleName = rm.name()[0];
 		}
 		RubyModule newModule = runtime.defineModule(moduleName);
+		
 		Method[] methods = moduleClass.getMethods();
 		for (final Method m:methods) {
 			JRubyMethod mm = m.getAnnotation(JRubyMethod.class);
 			if (mm == null) continue;
+			
 			String methodName = m.getName();
 			if (mm.name().length > 0) methodName = mm.name()[0]; 
 			final Arity arity = createArityFromAnnotation(mm);
-			final boolean isStatic = ((m.getModifiers() & Modifier.STATIC) != 0);
-			Callback callback = new Callback(){
-				public IRubyObject execute(IRubyObject self, IRubyObject[] args, Block block) {
-					try {
-						Object instance = getModuleObject(runtime, self, moduleClass);
-						Object rst;
-						if (isStatic) {
-							rst = m.invoke(null, self, args, block);	// staticなら thisなし
-						} else {
-							rst = m.invoke(instance, self, args, block);
-						}
-						if (rst instanceof IRubyObject) return (IRubyObject)rst;
-						if (rst instanceof String) return RubyString.newUnicodeString(runtime, (String)rst);
-						return JavaEmbedUtils.javaToRuby(runtime, rst);
-					} catch (IllegalArgumentException e) {
-						throw RaiseException.createNativeRaiseException(runtime, e);
-					} catch (IllegalAccessException e) {
-						throw RaiseException.createNativeRaiseException(runtime, e);
-					} catch (InvocationTargetException e) {
-						Throwable te = e.getTargetException();
-						if (te instanceof RuntimeException) throw (RuntimeException)te;
-						if (te instanceof IOException) throw runtime.newIOErrorFromException((IOException)te);
-						throw RaiseException.createNativeRaiseException(runtime, te);
-					}
-				}
-
-				public Arity getArity() {
-					return arity;
-				}
-
-			};
-			if (isStatic) {
-				newModule.defineModuleFunction(methodName,callback);
-			} else {
-				newModule.defineMethod(methodName,callback);
-			}
+			registerModuleMethod(newModule, moduleClass, m, methodName, arity);
+			
 		}
 		Field[] fields = moduleClass.getFields();
 		for (Field f:fields) {
@@ -398,18 +277,6 @@ public class Util {
 			modules[i++] = registerDecorator(runtime, target.getName(), decoratorClass);
 		}
 		return modules;
-	}
-	
-	static public RubyModule getJavaClassProxy(final Ruby runtime, String javaClassName)
-	{
-		RubyModule ju = runtime.getModule("JavaUtilities");
-		return (RubyModule)ju.callMethod(runtime.getCurrentContext(), 
-				"get_proxy_class", runtime.newString(javaClassName));
-	}
-	
-	static public RubyModule getJavaClassProxy(final Ruby runtime, Class clazz)
-	{
-		return getJavaClassProxy(runtime, clazz.getName());
 	}
 	
 	static public Object invokeJavaImplementedRubyMethod(
@@ -533,21 +400,6 @@ public class Util {
 		return result;
 	}
 	
-	/**
-	 * RubyArrayを Javaの IRubyObject[]に変換する
-	 * @param hash
-	 * @return
-	 */
-	static public IRubyObject[] convertRubyArray(RubyArray array)
-	{
-		if (array == null) return null;
-		IRubyObject[] jarray = new IRubyObject[array.getLength()];
-		for (int i = 0; i < jarray.length; i++) {
-			jarray[i] = array.at(array.getRuntime().newFixnum(i));
-		}
-		return jarray;
-	}
-	
 	static public void setValueToBean(Object obj, RubyHash hash)
 	{
 		Ruby runtime = hash.getRuntime();
@@ -557,14 +409,8 @@ public class Util {
 		}
 	}
 	
-	/**
-	 * ランタイムの初期化を行う
-	 * @return
-	 */
-	static public Ruby initizlize()
+	static public void defineJavaModuleFunction(Ruby ruby)
 	{
-		Ruby ruby = JavaEmbedUtils.initialize(new ArrayList<String> ());
-		ruby.setKCode(KCode.UTF8);
 		ruby.getKernel().defineModuleFunction("java_module", new Callback(){
 
 			public IRubyObject execute(IRubyObject self, IRubyObject[] args, Block block) {
@@ -573,11 +419,12 @@ public class Util {
 					// もし第2引数が与えられているのであれば、それは必須クラス指定
 					IRubyObject[] depOn;
 					if (args[1] instanceof RubyArray) {
-						depOn = Util.convertRubyArray(args[1].convertToArray());
+						depOn = convertRubyArray(args[1].convertToArray());
 					} else {
 						depOn = new IRubyObject[] { args[1] };
 					}
-					for (IRubyObject ro:depOn) {
+					for (int i = 0; i < depOn.length; i++) {
+						IRubyObject ro = depOn[i];
 						String className = ro.asString().getUnicodeValue();
 						try {
 							Class.forName(className);
@@ -599,7 +446,7 @@ public class Util {
 						throw RaiseException.createNativeRaiseException(runtime, e);
 					}
 				}
-				return Util.registerModule(runtime, clazz);
+				return registerModule(runtime, clazz);
 			}
 
 			public Arity getArity() {
@@ -607,6 +454,163 @@ public class Util {
 			}
 			
 		});
+	}
+
+	/**
+	 * RubyArrayを Javaの IRubyObject[]に変換する
+	 * @param hash
+	 * @return
+	 */
+	static public IRubyObject[] convertRubyArray(RubyArray array)
+	{
+		if (array == null) return null;
+		IRubyObject[] jarray = new IRubyObject[array.getLength()];
+		for (int i = 0; i < jarray.length; i++) {
+			jarray[i] = array.at(array.getRuntime().newFixnum(i));
+		}
+		return jarray;
+	}
+
+	static public void registerModuleMethod(RubyModule newModule, final Class moduleClass, 
+			final Method m, String methodName, final Arity arity)
+	{
+		final Ruby runtime = newModule.getRuntime();
+		final boolean isStatic = ((m.getModifiers() & Modifier.STATIC) != 0);
+		Callback callback = new Callback(){
+			public IRubyObject execute(IRubyObject self, IRubyObject[] args, Block block) {
+				try {
+					Object instance = getModuleObject(runtime, self, moduleClass);
+					Object rst;
+					if (isStatic) {
+						rst = m.invoke(null, self, args, block);	// staticなら thisなし
+					} else {
+						rst = m.invoke(instance, self, args, block);
+					}
+					if (rst instanceof IRubyObject) return (IRubyObject)rst;
+					if (rst instanceof String) return RubyString.newUnicodeString(runtime, (String)rst);
+					return JavaEmbedUtils.javaToRuby(runtime, rst);
+				} catch (IllegalArgumentException e) {
+					throw RaiseException.createNativeRaiseException(runtime, e);
+				} catch (IllegalAccessException e) {
+					throw RaiseException.createNativeRaiseException(runtime, e);
+				} catch (InvocationTargetException e) {
+					Throwable te = e.getTargetException();
+					if (te instanceof RuntimeException) throw (RuntimeException)te;
+					if (te instanceof IOException) throw runtime.newIOErrorFromException((IOException)te);
+					throw RaiseException.createNativeRaiseException(runtime, te);
+				}
+			}
+
+			public Arity getArity() {
+				return arity;
+			}
+
+		};
+		if (isStatic) {
+			newModule.defineModuleFunction(methodName,callback);
+		} else {
+			newModule.defineMethod(methodName,callback);
+		}
+	}
+
+	static private Object getModuleObject(final Ruby runtime, IRubyObject self, final Class moduleClass)
+	{
+		synchronized (self) {
+			Map<Class,Object> modmap = getClassAndInstanceMap(runtime, self, moduleClass, "@_java_module_objects"); 
+			Object modobj = modmap.get(moduleClass);
+			if (modobj == null) {
+				modobj = instantiateObjectUsingAppropriateConstructor(runtime, moduleClass, self);
+				modmap.put(moduleClass, modobj);
+			}
+			return modobj;
+		}
+	}
+	
+	static protected Object instantiateObjectUsingAppropriateConstructor(Ruby runtime, Class clazz, Object target)
+	{
+		Class targetClass = target.getClass();
+		// インスタンス化に使用するコンストラクタの候補を列挙する
+		Constructor[] ctors = clazz.getConstructors();
+		Constructor[] candidates = new Constructor[5];
+		for (Constructor ctor:ctors) {
+			if ((ctor.getModifiers() & Modifier.PUBLIC) == 0) continue;
+			Class[] types = ctor.getParameterTypes();
+			if (types.length == 0) candidates[4] = ctor;
+			else if (types.length == 2) {
+				if (types[0].isAssignableFrom(Ruby.class) && types[1].isAssignableFrom(targetClass)) {
+					candidates[0] = ctor;
+				} else if (types[0].isAssignableFrom(targetClass) && types[1].isAssignableFrom(Ruby.class)) {
+					candidates[1] = ctor;
+				}
+			} else if (types.length == 1) {
+				if (types[0].isAssignableFrom(targetClass)) candidates[2] = ctor;
+				else if (types[0].isAssignableFrom(Ruby.class)) candidates[3] = ctor;
+			}
+		}
+		
+		Object instance;
+		try {
+			if (candidates[0] != null) {
+				instance = candidates[0].newInstance(runtime, target);
+			} else if (candidates[1] != null) {
+				instance = candidates[1].newInstance(target, runtime);
+			} else if (candidates[2] != null) {
+				instance = candidates[2].newInstance(target);
+			} else if (candidates[3] != null) {
+				instance = candidates[3].newInstance(runtime);
+			} else if (candidates[4] != null) {
+				instance = candidates[4].newInstance();
+			} else {
+				throw runtime.newNotImplementedError("No any suitable constructor is defined on " + clazz.getName());
+			}
+		} catch (InstantiationException e) {
+			throw RaiseException.createNativeRaiseException(runtime, e);
+		} catch (IllegalAccessException e) {
+			throw RaiseException.createNativeRaiseException(runtime, e);
+		} catch (SecurityException e) {
+			throw RaiseException.createNativeRaiseException(runtime, e);
+		} catch (IllegalArgumentException e) {
+			throw RaiseException.createNativeRaiseException(runtime, e);
+		} catch (InvocationTargetException e) {
+			throw RaiseException.createNativeRaiseException(runtime, e.getTargetException());
+		}
+		return instance;
+	}
+
+	static protected Map<Class,Object> getClassAndInstanceMap(final Ruby runtime, IRubyObject self, final Class clazz, String instanceVaariableName)
+	{
+		IRubyObject rmap = self.getInstanceVariable(instanceVaariableName);
+		Map<Class,Object> jmap = rmap != null? (Map<Class, Object>) JavaEmbedUtils.rubyToJava(runtime, rmap, Map.class) : null; 
+		if (jmap == null) {
+			jmap = new HashMap<Class,Object>();
+			self.setInstanceVariable(instanceVaariableName, JavaEmbedUtils.javaToRuby(runtime, jmap));
+		}
+		return jmap;
+	}
+
+	static public RubyModule getJavaClassProxy(final Ruby runtime, String javaClassName)
+	{
+		RubyModule ju = runtime.getModule("JavaUtilities");
+		return (RubyModule)ju.callMethod(runtime.getCurrentContext(), 
+				"get_proxy_class", runtime.newString(javaClassName));
+	}
+	
+	static public RubyModule getJavaClassProxy(final Ruby runtime, Class clazz)
+	{
+		return getJavaClassProxy(runtime, clazz.getName());
+	}
+
+	/**
+	 * ランタイムの初期化を行う
+	 * @return
+	 */
+	static public Ruby initialize()
+	{
+		Ruby ruby = JavaEmbedUtils.initialize(new ArrayList());
+		ruby.setKCode(KCode.UTF8);
+
+		defineJavaModuleFunction(ruby);
+
 		return ruby;
 	}
 }

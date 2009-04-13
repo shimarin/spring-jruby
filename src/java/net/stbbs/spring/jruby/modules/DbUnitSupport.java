@@ -1,10 +1,15 @@
 package net.stbbs.spring.jruby.modules;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.InputStream;
 import java.sql.Connection;
+import java.util.ArrayList;
+import java.util.List;
 
 import javax.sql.DataSource;
+
+import net.stbbs.jruby.Util;
 
 import org.dbunit.AbstractDatabaseTester;
 import org.dbunit.IDatabaseTester;
@@ -21,8 +26,11 @@ import org.dbunit.ext.mysql.MySqlConnection;
 import org.dbunit.ext.oracle.OracleConnection;
 import org.dbunit.operation.DatabaseOperation;
 import org.jruby.Ruby;
+import org.jruby.RubyArray;
+import org.jruby.RubyModule;
 import org.jruby.anno.JRubyMethod;
 import org.jruby.anno.JRubyModule;
+import org.jruby.javasupport.JavaEmbedUtils;
 import org.jruby.runtime.Block;
 import org.jruby.runtime.builtin.IRubyObject;
 import org.springframework.core.io.Resource;
@@ -78,51 +86,98 @@ public class DbUnitSupport extends DataSourceSupport {
 		super(runtime, self);
 	}
 	
-	protected void executeInsertOperation(IRubyObject self, IDataSet fixtures) throws Exception
+	public static void onRegister(RubyModule module)
 	{
-		IDatabaseTester tester = new TransactionAwareDataSourceDatabaseTester(getDataSource());
-		IDatabaseConnection conn = null;
-		try {
-			conn = tester.getConnection();
-			DatabaseOperation.INSERT.execute(conn, fixtures);
-		}
-		finally {
-			if (conn != null)
-				tester.closeConnection(conn);
-		}
+		Util.registerDecorator(module.getRuntime(), DataSource.class, DataSourceDecorator.class);
 	}
 	
-	@JRubyMethod(required=1)
-	public IRubyObject loadXlsFixture(IRubyObject self, IRubyObject[] args, Block block) throws Exception
-	{
-		// 引数が０の場合エラー
-		if (args.length < 1) {
-			throw self.getRuntime().newArgumentError(args.length, 1);
+	public static class DataSourceDecorator {
+		private DataSource dataSource;
+		public DataSourceDecorator(DataSource dataSource)
+		{
+			this.dataSource = dataSource;
 		}
-		
-		XlsDataSet ds = null;
-		Object o = toJava(args[0]);
-		InputStream inputStreamNeedToClose = null;
-		if (o instanceof File) {
-			ds = new XlsDataSet((File)o);
-		} else if (o instanceof InputStream) {
-			ds = new XlsDataSet((InputStream)o);
-		} else if (o instanceof Resource){
-			inputStreamNeedToClose = ((Resource)o).getInputStream(); 
-			ds = new XlsDataSet(inputStreamNeedToClose);
-		} else {
-			ds = new XlsDataSet(new File(args[0].asString().getUnicodeValue()));
-		}
-		try {
-			executeInsertOperation(self, ds); 
-		}
-		finally {
-			if (inputStreamNeedToClose != null) {
-				inputStreamNeedToClose.close();
-				inputStreamNeedToClose = null;
+
+		protected void executeInsertOperation(IRubyObject self, IDataSet fixtures) throws Exception
+		{
+			IDatabaseTester tester = new TransactionAwareDataSourceDatabaseTester(dataSource);
+			IDatabaseConnection conn = null;
+			try {
+				conn = tester.getConnection();
+				DatabaseOperation.INSERT.execute(conn, fixtures);
+			}
+			finally {
+				if (conn != null)
+					tester.closeConnection(conn);
 			}
 		}
-		return runtime.getNil();
+		
+		@JRubyMethod(required=1)
+		public void loadXlsFixture(IRubyObject self, IRubyObject[] args, Block block) throws Exception
+		{
+			Ruby runtime = self.getRuntime();
+			// 引数が０の場合エラー
+			if (args.length < 1) {
+				throw runtime.newArgumentError(args.length, 1);
+			}
+			
+			XlsDataSet ds = null;
+			Object o = JavaEmbedUtils.rubyToJava(runtime, args[0], null);
+			InputStream inputStreamNeedToClose = null;
+			if (o instanceof File) {
+				ds = new XlsDataSet((File)o);
+			} else if (o instanceof InputStream) {
+				ds = new XlsDataSet((InputStream)o);
+			} else if (o instanceof Resource){
+				inputStreamNeedToClose = ((Resource)o).getInputStream(); 
+				ds = new XlsDataSet(inputStreamNeedToClose);
+			} else {
+				ds = new XlsDataSet(new File(args[0].asString().getUnicodeValue()));
+			}
+			try {
+				executeInsertOperation(self, ds); 
+			}
+			finally {
+				if (inputStreamNeedToClose != null) {
+					inputStreamNeedToClose.close();
+					inputStreamNeedToClose = null;
+				}
+			}
+		}
+
+		@JRubyMethod
+		public byte[] exportAsXls(IRubyObject self, IRubyObject[] args, Block block) throws Exception
+		{
+			// 引数が０の場合エラー
+			if (args.length < 1) {
+				throw self.getRuntime().newArgumentError(args.length, 1);
+			}
+
+			IDatabaseTester tester = new TransactionAwareDataSourceDatabaseTester(dataSource);
+			IDatabaseConnection conn = null;
+			List<String> tables = new ArrayList();
+			if (args[0] instanceof RubyArray) {
+				IRubyObject[] argsj = Util.convertRubyArray((RubyArray)args[0]);
+				for (IRubyObject arg:argsj) {
+					tables.add(arg.asString().getUnicodeValue());
+				}
+			} else {
+				for (IRubyObject arg:args) {
+					tables.add(arg.asString().getUnicodeValue());
+				}
+			}
+			try {
+				ByteArrayOutputStream baos = new ByteArrayOutputStream();
+				conn = tester.getConnection();
+				IDataSet dataset = conn.createDataSet(tables.toArray(new String[]{}));
+				XlsDataSet.write(dataset, baos);
+				return baos.toByteArray();
+			}
+			finally {
+				if (conn != null)
+					tester.closeConnection(conn);
+			}
+		}
 	}
 
 }

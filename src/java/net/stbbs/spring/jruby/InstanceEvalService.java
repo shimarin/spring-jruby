@@ -7,14 +7,13 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import javax.servlet.ServletContext;
 import javax.servlet.ServletException;
@@ -22,22 +21,26 @@ import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import net.stbbs.jruby.modules.GraphicsSupport;
+import net.stbbs.jruby.modules.BufferedImageRenderer;
+import net.stbbs.spring.jruby.TableDescription.ColumnDescription;
 import net.stbbs.spring.jruby.modules.ApplicationContextSupport;
+import net.stbbs.spring.jruby.modules.DownloadContent;
 import net.stbbs.spring.jruby.modules.RequestContextSupport;
-import net.stbbs.spring.jruby.modules.DownloadSupport.DownloadContent;
+import net.stbbs.spring.jruby.modules.SQLSupport.SqlRowProxy;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.jruby.Ruby;
 import org.jruby.RubyException;
+import org.jruby.RubyMethod;
 import org.jruby.RubyNil;
 import org.jruby.RubyObject;
 import org.jruby.RubyString;
 import org.jruby.exceptions.RaiseException;
 import org.jruby.javasupport.JavaEmbedUtils;
+import org.jruby.runtime.ThreadContext;
 import org.jruby.runtime.builtin.IRubyObject;
-import org.springframework.beans.BeanUtils;
+import org.springframework.beans.BeanWrapperImpl;
 import org.springframework.jdbc.support.rowset.SqlRowSet;
 import org.springframework.jdbc.support.rowset.SqlRowSetMetaData;
 
@@ -116,20 +119,40 @@ public class InstanceEvalService {
 		}
 		return obj.toString();
 	}
+
+	static private void printColumnHeader(PrintWriter out, SqlRowSetMetaData md)
+	{
+		String[] cols = md.getColumnNames();
+		out.println("<tr>");
+		for (int i = 0; i < cols.length; i++) {
+			String col = cols[i];
+			out.print("<th>" + escapeHTML(col) + "</th>");
+		}
+		out.println("</tr>");
+	}
+	
+	static protected void printSqlRowProxy(PrintWriter out, SqlRowProxy rsp)
+	{
+		out.println("<table border='1'>");
+		SqlRowSetMetaData md = rsp.getMetaData();
+		printColumnHeader(out, md);
+		out.println("<tr>");
+		for (int i = 1; i <= md.getColumnCount(); i++) {
+			Object obj = rsp.getValue(i);
+			out.print("<td>" + (obj != null? escapeHTML(obj.toString()):"null") + "</td>");
+		}
+		out.println("</tr>");
+		out.println("</table>");
+	}
 	
 	static protected void printSqlRowSet(PrintWriter out, SqlRowSet rs)
 	{
 		out.println("<table border='1'>");
 		SqlRowSetMetaData md = rs.getMetaData();
-		String[] cols = md.getColumnNames();
-		out.println("<tr>");
-		for (String col:cols) {
-			out.print("<th>" + escapeHTML(col) + "</th>");
-		}
-		out.println("</tr>");
+		printColumnHeader(out, md);
 		while (rs.next()) {
 			out.println("<tr>");
-			for (int i = 1; i <= cols.length; i++) {
+			for (int i = 1; i <= md.getColumnCount(); i++) {
 				Object obj = rs.getObject(i);
 				out.print("<td>" + (obj != null? escapeHTML(obj.toString()):"null") + "</td>");
 			}
@@ -143,7 +166,9 @@ public class InstanceEvalService {
 		out.println("<h3>Table: " + escapeHTML(td.getTableName()) + "</h3>");
 		out.println("<table border='1'>");
 		out.println("<tr><th>name</th><th>type</th><th>precision</th></tr>");
-		for (TableDescription.ColumnDescription col:td.getColumns()) {
+		Iterator i = td.getColumns().iterator();
+		while (i.hasNext()) {
+			TableDescription.ColumnDescription col = (ColumnDescription) i.next();
 			out.println("<tr>");
 			out.println("<td>" + escapeHTML(col.getName()) + "</td>");
 			out.println("<td>" + escapeHTML(col.getType()) + "</td>");
@@ -165,32 +190,24 @@ public class InstanceEvalService {
 			return;
 		}
 
+		BeanWrapperImpl bw = new BeanWrapperImpl(obj);
 		// getterで読み出せるプロパティ全て
-		PropertyDescriptor[] props = BeanUtils.getPropertyDescriptors(obj.getClass());
+		PropertyDescriptor[] props = bw.getPropertyDescriptors();
 		// publicフィールド全て
 		Field[] fields = obj.getClass().getFields();
 
 		out.println(escapeHTML( obj.toString() ) + "<br>");
 		out.println("<table border='1'>");
-		for (PropertyDescriptor pd:props) {
-			Method m = pd.getReadMethod();
-			if (m != null) {
-				Object value;
-				try {
-					value = m.invoke(obj);
-				} catch (IllegalArgumentException e) {
-					continue;
-				} catch (IllegalAccessException e) {
-					continue;
-				} catch (InvocationTargetException e) {
-					continue;
-				}
-				out.println("<tr>");
-				out.println("<th>" + escapeHTML(pd.getDisplayName()) + "</th><td>" + escapeHTML( obj2str(value))  + "</td>");
-				out.println("</tr>");
-			}
+		for (int i = 0; i < props.length; i++) {
+			PropertyDescriptor pd = props[i];
+			Object value = bw.getPropertyValue(pd.getName());
+			out.println("<tr>");
+			out.println("<th>" + escapeHTML(pd.getDisplayName()) + "</th><td>" + escapeHTML( obj2str(value))  + "</td>");
+			out.println("</tr>");
 		}
-		for (Field f:fields) {
+		
+		for (int i = 0; i < fields.length; i++) {
+			Field f = fields[i];
 			int modifiers = f.getModifiers();
 			if ((modifiers & Modifier.PUBLIC) > 0 && (modifiers & Modifier.STATIC) == 0) {
 				Object value;
@@ -248,7 +265,12 @@ public class InstanceEvalService {
 				printSqlRowSet(out, (SqlRowSet)result);
 				return;
 			} 
-			
+
+			if (result instanceof SqlRowProxy) {
+				printSqlRowProxy(out, (SqlRowProxy)result);
+				return;
+			} 
+
 			if (result instanceof TableDescription) {
 				printTableDescription(out, (TableDescription)result);
 				return;
@@ -257,8 +279,9 @@ public class InstanceEvalService {
 			if (result instanceof Collection) {
 				Collection col = (Collection)result;
 				out.println("Collection(count=" + col.size() + ")<br>");
-				for (Object obj:col) {
-					prettyPrint(out, obj);
+				Iterator i = col.iterator();
+				while (i.hasNext()) {
+					prettyPrint(out, i.next());
 					out.println("<br>");
 				}
 				return;
@@ -267,8 +290,8 @@ public class InstanceEvalService {
 			if (result.getClass().isArray()) {
 				Object[] col = (Object[])result;
 				out.println("Array(count=" + col.length + ")<br>");
-				for (Object obj:col) {
-					prettyPrint(out, obj);
+				for (int i = 0; i < col.length; i++) {
+					prettyPrint(out, col[i]);
 					out.println("<br>");
 				}
 				return;
@@ -276,8 +299,9 @@ public class InstanceEvalService {
 			
 			if (result instanceof Map) {
 				Map map = (Map)result;
-				for (Object obj:map.entrySet()) {
-					Map.Entry entry = (Map.Entry)obj;
+				Iterator i = map.entrySet().iterator();
+				while (i.hasNext()) {
+					Map.Entry entry = (Map.Entry)i.next();
 					out.println(escapeHTML(obj2str(entry.getKey())) + " => " + escapeHTML(obj2str(entry.getValue())) + "<br>");
 				}
 				return;
@@ -314,12 +338,46 @@ public class InstanceEvalService {
 		return ApplicationContextSupport.scopedInstanceEval(proxyInstance, expression);
 	}
 	
+	protected void printAuthForm(PrintWriter out, int arity)
+	{
+		
+	}
+	
 	protected void service(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException
 	{
 		request.setCharacterEncoding("UTF-8");
-		String expression = request.getParameter("expression");
 
 		IRubyObject instance = getProxyInstance();
+		Ruby runtime = instance.getRuntime();
+		ThreadContext context = runtime.getCurrentContext();
+		
+		final String hostCheckMethod = "instance_eval_servlet_host_check";
+		final String authMethod = "instance_eval_authentication";
+		
+		IRubyObject authStatus = runtime.getNil();
+		if (instance.respondsTo(hostCheckMethod)) {
+			RubyString hostname = runtime.newString(request.getRemoteHost());
+			RubyString ipAddress = runtime.newString(request.getRemoteAddr());
+			authStatus = instance.callMethod(context, hostCheckMethod, new IRubyObject[] {hostname, ipAddress});
+		}
+		if (authStatus.isNil()) {
+			if (instance.respondsTo(authMethod)) {
+				//auth
+				response.setContentType("text/html; charset=UTF-8");
+				PrintWriter out = response.getWriter();
+				long arity = ((RubyMethod)instance.getMetaClass().getMethods().get("instance_eval_authentication")).arity().getLongValue();
+				printAuthForm(out, (int)arity);
+				return;
+			}
+		}
+		if (!authStatus.isNil() && !authStatus.isTrue()) {
+			response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+			return;
+		}
+		
+		
+		String expression = request.getParameter("expression");
+
 		IRubyObject result = null;
 		RubyException re = null;
 		boolean exec = false;
@@ -349,7 +407,7 @@ public class InstanceEvalService {
 			} else if (o instanceof byte[]) {
 				dc = new DownloadContent((byte[])o);
 			} else if (o instanceof BufferedImage) {
-				dc = new DownloadContent(GraphicsSupport.BufferedImageDecorator.toByteArray((BufferedImage)o, "png"));
+				dc = new DownloadContent(BufferedImageRenderer.toByteArray((BufferedImage)o, "png"));
 			}
 			if (dc != null) {
 				response.setContentType(dc.getContentType());
@@ -367,16 +425,18 @@ public class InstanceEvalService {
 		
 		printForm(out, expression);
 
-		List<IRubyObject> ruby_p = RequestContextSupport.getRubyPObjects();
+		List ruby_p = RequestContextSupport.getRubyPObjects();
 		if (ruby_p != null) {
 			out.println("<h2>p</h2>");
-			for (IRubyObject ro:ruby_p) {
+			Iterator i = ruby_p.iterator();
+			while (i.hasNext()) {
+				IRubyObject ro = (IRubyObject) i.next();
 				printResult(out, ro.getRuntime(), ro);
 			}
 		}
 		
 		// インスタンス変数の処理
-		Map<String,IRubyObject> instanceVariables = new HashMap<String,IRubyObject>();
+		Map instanceVariables = new HashMap();
 		Iterator i = instance.instanceVariableNames();
 		while (i.hasNext()) {
 			String name = (String)i.next();
@@ -387,7 +447,9 @@ public class InstanceEvalService {
 		if (instanceVariables.size() > 0) {
 			out.println("<h2>instance_variables</h2>");
 			out.println("<table>");
-			for (Map.Entry<String, IRubyObject> entry:instanceVariables.entrySet()) {
+			i = instanceVariables.entrySet().iterator();
+			while (i.hasNext()) {
+				Map.Entry entry = (Entry) i.next();
 				out.println("<tr><th valign='top'>"+ entry.getKey() + "</th><td>");
 				printResult(out, instance.getRuntime(), entry.getValue());
 				out.println("</td></tr>");

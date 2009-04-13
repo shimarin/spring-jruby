@@ -1,0 +1,26 @@
+<html>
+<head>
+<script src="http://www.google.com/jsapi"></script>
+<script type="text/javascript">
+djConfig = { usePlainJson: true, parseOnLoad: true};
+  google.load("dojo", "1.2.3");
+  var proxy;
+  function setup() {
+    dojo.require('dojo.rpc.JsonService');
+  }
+
+  function doCalc() {
+    var smdURL = '/jsonrpc/myBean';
+    proxy = new dojo.rpc.JsonService(smdURL);
+    alert(proxy.callRemote("hoge", [1, 2, 3]));
+  }
+
+  function doCalcCallback(result) {
+      alert(result);
+  }
+</script><input type="button" onclick="doCalc();" value="A+B"/>
+</head>
+<body onLoad="setup();">
+じぇーそーん
+</body>
+</html>

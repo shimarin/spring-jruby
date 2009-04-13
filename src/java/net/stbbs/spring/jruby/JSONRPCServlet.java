@@ -7,20 +7,13 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-public class InstanceEvalServlet extends HttpServlet {
-	
-	/**
-	 * 
-	 */
-	private static final long serialVersionUID = 1L;
-
+public class JSONRPCServlet extends HttpServlet {
 	private InstanceEvalService svc;
-
-	//@Override
+	@Override
 	public void init() throws ServletException
 	{
 		try {
-			svc = new InstanceEvalService();
+			svc = new JSONRPCService();
 		}
 		catch (java.lang.NoClassDefFoundError ex) {
 			throw new ServletException("JRuby1.0がクラスパスに存在しません。WEB-INF/libに配置してください。:" + ex.getMessage());
@@ -34,8 +27,8 @@ public class InstanceEvalServlet extends HttpServlet {
 			throw new ServletException(e);
 		}
 	}
-	
-	//@Override
+
+	@Override
 	public void destroy()
 	{
 		svc.destroy(getServletContext());
@@ -46,5 +39,4 @@ public class InstanceEvalServlet extends HttpServlet {
 	{
 		svc.service(request, response);
 	}
-
 }

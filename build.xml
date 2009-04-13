@@ -22,7 +22,26 @@
 
 		<jar basedir="${classes}" jarfile="build/${jar}"/>
 	</target>
-	
+
+	<target name="jar-java14">
+		<delete dir="build"/>
+		<mkdir dir="${classes}"/>
+		<javac srcdir="src/java" destdir="${classes}" encoding="UTF-8" debug="true" source="1.4" target="1.4">
+			<classpath>
+				<fileset dir="lib" includes="*.jar"/>
+				<fileset dir="src/webapp/WEB-INF/lib" includes="*.jar"/>
+			</classpath>
+			<include name="net/stbbs/spring/jruby/InstanceEvalServlet.java"/>
+		</javac>
+		<copy todir="${classes}">
+			<fileset dir="src/java" includes="**/*.xml,**/*.rb">
+				<exclude name="net/stbbs/spring/jruby/web_runtime.rb"/>
+			</fileset>
+		</copy>
+
+		<jar basedir="${classes}" jarfile="build/spring-jruby-java14.jar"/>
+	</target>
+
 	<target name="standalone">
 		<delete dir="build"/>
 		<mkdir dir="${standalone-classes}"/>

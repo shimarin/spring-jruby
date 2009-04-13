@@ -5,7 +5,6 @@ import java.io.IOException;
 import java.io.InputStream;
 
 import net.stbbs.jruby.Decorator;
-import net.stbbs.spring.jruby.modules.DownloadSupport.DownloadContent;
 
 import org.jruby.Ruby;
 import org.jruby.anno.JRubyMethod;

@@ -25,7 +25,6 @@ import org.jruby.runtime.Block;
 import org.jruby.runtime.ThreadContext;
 import org.jruby.runtime.builtin.IRubyObject;
 import org.jruby.runtime.callback.Callback;
-import org.springframework.context.ApplicationContext;
 import org.springframework.core.io.Resource;
 import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.context.support.WebApplicationContextUtils;
@@ -74,7 +73,7 @@ public class JRubyRuntimeListener implements ServletContextListener {
 
 	public static IRubyObject initializeRuntime(ServletContext servletContext) throws ServletException, IOException
 	{
-		final Ruby ruby = Util.initizlize();
+		final Ruby ruby = Util.initialize();
 		loadRubyGems(ruby);
 
 		WebApplicationContext wac;
@@ -106,6 +105,12 @@ public class JRubyRuntimeListener implements ServletContextListener {
 
 		applicationContext.callMethod(context, "setProxyClassCallback", JavaEmbedUtils.javaToRuby(ruby, 
 				new WebApplicationProxyClassCallback(ruby, wac, classScript)));
+
+		// webapplication_initメソッドが存在したらそれを実行する
+		IRubyObject applicationContextProxy = ((RubyClass)applicationContext.callMethod(context, "getProxyClass")).allocate();
+		if (applicationContextProxy.respondsTo("webapplication_init")) {
+			applicationContextProxy.callMethod(context, "webapplication_init");
+		}
 		
 		return applicationContext; 
 	}
@@ -205,8 +210,7 @@ public class JRubyRuntimeListener implements ServletContextListener {
 			
 			Ruby runtime = newProxyClass.getRuntime();
 			ThreadContext context = runtime.getCurrentContext();
-			IRubyObject script = JavaEmbedUtils.javaToRuby(runtime, r).callMethod(context, "read");
-			newProxyClass.callMethod(context, "class_eval", script);
+			newProxyClass.callMethod(context, "include_resource", JavaEmbedUtils.javaToRuby(runtime, r));
 			logger.info("リクエスト処理クラス初期化スクリプト " + this.initScript + " をロードしました");
 		}
 		

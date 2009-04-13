@@ -8,8 +8,6 @@ import java.io.OutputStreamWriter;
 import java.io.StringWriter;
 import java.util.Map;
 
-import net.stbbs.spring.jruby.modules.DownloadSupport.DownloadContent;
-
 import org.apache.velocity.VelocityContext;
 import org.apache.velocity.app.Velocity;
 import org.apache.velocity.context.Context;

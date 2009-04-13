@@ -1,5 +1,6 @@
 package net.stbbs.spring.jruby.modules;
 
+
 import java.beans.PropertyDescriptor;
 import java.io.Serializable;
 import java.lang.reflect.Field;
@@ -39,7 +40,7 @@ import org.jruby.runtime.Arity;
 import org.jruby.runtime.Block;
 import org.jruby.runtime.builtin.IRubyObject;
 import org.jruby.runtime.callback.Callback;
-import org.springframework.beans.BeanUtils;
+import org.springframework.beans.BeanWrapperImpl;
 import org.springframework.context.ApplicationContext;
 
 public class HibernateSupport extends DataSourceSupport {
@@ -192,18 +193,7 @@ public class HibernateSupport extends DataSourceSupport {
 			public IRubyObject execute(IRubyObject self, IRubyObject[] args, Block block) {
 				Ruby runtime = self.getRuntime();
 				Object entity = JavaEmbedUtils.rubyToJava(runtime, self, null);
-				EntitySerializer es = new EntitySerializer();
-				try {
-					return JavaEmbedUtils.javaToRuby(runtime, es.serialize(entity));
-				} catch (InstantiationException e) {
-					throw RaiseException.createNativeRaiseException(runtime, e);
-				} catch (IllegalAccessException e) {
-					throw RaiseException.createNativeRaiseException(runtime, e);
-				} catch (InvocationTargetException e) {
-					throw RaiseException.createNativeRaiseException(runtime, e.getTargetException());
-				} catch (NoSuchMethodException e) {
-					throw RaiseException.createNativeRaiseException(runtime, e);
-				}
+				return JavaEmbedUtils.javaToRuby(runtime, EntityDetacher.detach(entity));
 			}
 
 			public Arity getArity() {
@@ -335,7 +325,7 @@ public class HibernateSupport extends DataSourceSupport {
 	 * @author shimarin
 	 *
 	 */
-	public static class EntitySerializer {
+	public static class EntityDetacher {
 		protected Collection<Object[]> objectMap = new ArrayList<Object[]>();
 
 		protected Object getExisting(Object obj)
@@ -389,7 +379,7 @@ public class HibernateSupport extends DataSourceSupport {
 			return obj;
 		}
 		
-		public Object serialize(Object o) throws InstantiationException, IllegalAccessException, InvocationTargetException, NoSuchMethodException
+		public Object detachCopy(Object o)
 		{
 			if (o == null) return null;
 			
@@ -420,52 +410,74 @@ public class HibernateSupport extends DataSourceSupport {
 			if (existingOne != null) return existingOne;
 
 			if (o instanceof Collection) {
-				Collection<Object> col = newCollection(o);
-				for (Object co:(Collection)o) {
-					col.add(serialize(co));
+				try {
+					Collection<Object> col = newCollection(o);
+					for (Object co:(Collection)o) {
+						col.add(detachCopy(co));
+					}
+					return col;
 				}
-				return col;
+				catch (InstantiationException ex) {
+					logger.warn("InstantiationException", ex);
+				} catch (IllegalAccessException ex) {
+					logger.warn("IllegalAccessException", ex);
+				}
+				// 例外発生時はそのままのオブジェクトを返す
+				return o;
 			}
 			
 			if (o.getClass().isArray()) {
 				Object[] src = (Object[])o;
 				Object[] dst = newArray(o, src.length);
 				for (int i = 0; i < dst.length; i++) {
-					dst[i] = serialize(src[i]);
+					dst[i] = detachCopy(src[i]);
 				}
 				return dst;
 			}
 			
 			//Map<String,Object> map = newMap(o);
-			Object clone = newObject(o);
-			
-			Field[] fields = o.getClass().getFields();
-			for (Field f:fields) {
-				int mod = f.getModifiers();
-				if (Modifier.isPublic(mod) && !Modifier.isStatic(mod)) {
-					Object src = serialize(f.get(o));
-					logger.info("clone=" + clone + ", f=" + f.getName() + ", src=" + src);
-					f.set(clone, src );
+			try {
+				Object clone = newObject(o);
+				Field[] fields = o.getClass().getFields();
+				for (Field f:fields) {
+					int mod = f.getModifiers();
+					if (Modifier.isPublic(mod) && !Modifier.isStatic(mod)) {
+						Object src = detachCopy(f.get(o));
+						logger.info("clone=" + clone + ", f=" + f.getName() + ", src=" + src);
+						f.set(clone, src );
+					}
 				}
-			}
-			
-			PropertyDescriptor[] props = BeanUtils.getPropertyDescriptors(o.getClass());
-			for (PropertyDescriptor pd:props) {
-				Method msrc = pd.getReadMethod();
-				Method mdst = pd.getWriteMethod();
-				if (msrc == null || mdst == null) continue;
-				Object value;
-				try {
-					value = msrc.invoke(o);
-					mdst.invoke(clone, serialize(o));
-				} catch (IllegalArgumentException e) {
-					continue;
-				} catch (IllegalAccessException e) {
-					continue;
+				
+				BeanWrapperImpl bwiSrc = new BeanWrapperImpl(o);
+				BeanWrapperImpl bwiDst = new BeanWrapperImpl(clone);
+				
+				PropertyDescriptor[] props = bwiSrc.getPropertyDescriptors();
+				for (PropertyDescriptor pd:props) {
+					String propName = pd.getName();
+					Method readMethod = pd.getReadMethod();
+					Method writeMethod = pd.getWriteMethod();
+					if (readMethod == null || writeMethod == null) continue;
+					if (readMethod.getParameterTypes().length != 0) continue;
+					if (writeMethod.getParameterTypes().length != 1) continue;
+					if (writeMethod.getParameterTypes()[0] != readMethod.getReturnType()) continue;
+					Object value = bwiSrc.getPropertyValue(propName);
+					bwiDst.setPropertyValue(propName, detachCopy(value));
 				}
-			}
 
-			return clone;
+				return clone;
+			}
+			catch (InstantiationException ex) {
+				logger.warn("InstantiationException", ex);
+			} catch (IllegalAccessException ex) {
+				logger.warn("IllegalAccessException", ex);
+			}
+			// 例外発生時はそのままのオブジェクトを返す
+			return o;
+		}
+		public static Object detach(Object o)
+		{
+			EntityDetacher me = new EntityDetacher();
+			return me.detachCopy(o);
 		}
 
 	}

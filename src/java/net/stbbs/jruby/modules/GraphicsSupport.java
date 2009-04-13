@@ -106,15 +106,9 @@ public class GraphicsSupport {
 			} else {
 				throw runtime.newArgumentError("Image file format '" + format + "' is not supported.");
 			}
-			return toByteArray(bufferedImage, format);
+			return BufferedImageRenderer.toByteArray(bufferedImage, format);
 		}
 
-		public static byte[] toByteArray(BufferedImage bufferedImage, String format) throws IOException
-		{
-			ByteArrayOutputStream baos = new ByteArrayOutputStream();
-			ImageIO.write(bufferedImage, format, baos);
-			return baos.toByteArray();
-		}
 	}
 	
 

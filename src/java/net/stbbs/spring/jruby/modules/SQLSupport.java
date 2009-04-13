@@ -320,6 +320,10 @@ public class SQLSupport extends DataSourceSupport {
 		{
 			return sqlRowSet.getMetaData().getColumnCount();
 		}
+		public SqlRowSetMetaData getMetaData()
+		{
+			return sqlRowSet.getMetaData();
+		}
 	}
 	
 	@Decorator(SqlRowProxy.class)

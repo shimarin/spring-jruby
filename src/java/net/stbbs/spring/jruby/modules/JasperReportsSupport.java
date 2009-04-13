@@ -35,9 +35,7 @@ import net.stbbs.jruby.Util;
 
 import org.jruby.Ruby;
 import org.jruby.RubyArray;
-import org.jruby.RubyHash;
 import org.jruby.RubyModule;
-import org.jruby.RubyNumeric;
 import org.jruby.anno.JRubyMethod;
 import org.jruby.javasupport.JavaEmbedUtils;
 import org.jruby.runtime.Block;
@@ -89,7 +87,7 @@ public class JasperReportsSupport {
 			JasperDesign design = loadJasperDesign(self, args, null);
 			return JasperCompileManager.compileReport(design);
 		}
-}
+	}
 	
 	static public class JasperDesignDecorator {
 		private JasperDesign design;
@@ -129,12 +127,9 @@ public class JasperReportsSupport {
 			JasperPrint print;
 			Map parameters = new HashMap();
 			if (args.length > 0) {
-				RubyHash hash = (RubyHash)args[0];
-				RubyArray keys = hash.keys();
-				for (int i = 0; i < keys.getLength(); i++) {
-					IRubyObject key = keys.at(RubyNumeric.int2fix(runtime, i));
-					IRubyObject value = hash.fastARef(key);
-					parameters.put(key.asString().getUnicodeValue(), JavaEmbedUtils.rubyToJava(runtime, value, null));
+				Map<String,IRubyObject> hash = Util.convertRubyHash(args[0].convertToHash());
+				for (Map.Entry<String, IRubyObject> entry : hash.entrySet()) {
+					parameters.put(entry.getKey(), JavaEmbedUtils.rubyToJava(runtime, entry.getValue(), null));
 				}
 			}
 			Object jo = args.length > 1? JavaEmbedUtils.rubyToJava(runtime, args[1], null) : DataSourceSupport.getDataSource(self);

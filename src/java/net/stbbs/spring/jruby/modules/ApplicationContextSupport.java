@@ -20,13 +20,14 @@ import org.jruby.runtime.ThreadContext;
 import org.jruby.runtime.builtin.IRubyObject;
 import org.jruby.runtime.callback.Callback;
 import org.springframework.context.ApplicationContext;
+import org.springframework.core.io.Resource;
 
 import net.stbbs.jruby.Decorator;
 import net.stbbs.jruby.Util;
 
 public class ApplicationContextSupport {
-	public static final String APPLICATIONCONTEXT_OBJECT_NAME = "__JRubyApplicationContext";
 	public static final String BINDING_TLD_NAME = "applicationContextBinding";
+	public static final String APPLICATIONCONTEXT_OBJECT_NAME = "__JRubyApplicationContext";
 
 	public static void onRegister(RubyModule module)
 	{
@@ -39,42 +40,6 @@ public class ApplicationContextSupport {
 	public static IRubyObject applicationContext(IRubyObject self, IRubyObject[] args, Block block)
 	{
 		return self.getRuntime().getGlobalVariables().get(APPLICATIONCONTEXT_OBJECT_NAME);
-	}
-
-	public static IRubyObject scopedInstanceEval(IRubyObject self, IRubyObject script)
-	{
-		Ruby runtime = self.getRuntime();
-		ThreadContext context = runtime.getCurrentContext();
-		RubyThread thread = context.getThread();
-		DynamicScope evalScope = new DynamicScope(new LocalStaticScope(null)); //context.getCurrentScope().cloneScope();
-		context.pushScope(evalScope);
-		IRubyObject binding = self.callMethod(context, "binding");
-		thread.aset(RubySymbol.newSymbol(runtime, BINDING_TLD_NAME), binding);
-		try {
-			return self.callMethod(context, "instance_eval", script);
-		} 
-		finally {
-			context.popScope();
-		}
-	}
-	
-	public static IRubyObject scopedInstanceEval(IRubyObject self, String script)
-	{
-		Ruby runtime = self.getRuntime();
-		return scopedInstanceEval(self, RubyString.newUnicodeString(runtime, script));
-	}
-
-	public static IRubyObject evalWithApplicationContextBinding(IRubyObject self, String expr)
-	{
-		Ruby runtime = self.getRuntime();
-		ThreadContext context = runtime.getCurrentContext();
-		RubyThread thread = context.getThread();
-		IRubyObject binding = thread.aref(RubySymbol.newSymbol(runtime, BINDING_TLD_NAME));
-		IRubyObject[] args = new IRubyObject[binding == null? 1 : 2];
-		args[0] = RubyString.newUnicodeString(runtime, expr);
-		if (args.length > 1) args[1] = binding;
-		return self.callMethod(context, "eval", args);
-
 	}
 	
 	// for convinience
@@ -110,7 +75,12 @@ public class ApplicationContextSupport {
 		@JRubyMethod
 		public Object method_missing(IRubyObject self, IRubyObject[] args, Block block) {
 			if (args == null || args.length < 1) return null;
+			
 			String beanName = args[0].asSymbol();
+			if (beanName.endsWith("?")) {
+				beanName = beanName.substring(0, beanName.length() - 1);
+				return applicationContext.containsBean(beanName); 
+			}
 			if (!applicationContext.containsBean(beanName)) {
 				throw self.getRuntime().newNameError("Bean not found: " + beanName, beanName);
 			}
@@ -139,6 +109,19 @@ public class ApplicationContextSupport {
 			proxyClassCallback = (ProxyClassCallback)JavaEmbedUtils.rubyToJava(self.getRuntime(), args[0], ProxyClassCallback.class);
 		}
 		
+		protected IRubyObject loadResourceAsString(IRubyObject res)
+		{
+			Ruby runtime = res.getRuntime();
+			Object jo = JavaEmbedUtils.rubyToJava(runtime, res, null);
+			IRubyObject r;
+			if (jo instanceof Resource) {
+				r = res;
+			} else {
+				r = JavaEmbedUtils.javaToRuby(runtime, applicationContext.getResource(res.asString().getUnicodeValue()));
+			}
+			return r.callMethod(runtime.getCurrentContext(), "read");
+		}
+		
 		@JRubyMethod
 		public synchronized RubyClass getProxyClass(IRubyObject self, IRubyObject[] args, Block block) throws IOException
 		{
@@ -153,6 +136,37 @@ public class ApplicationContextSupport {
 
 			// else
 			proxyClass = self.getMetaClass().defineClassUnder(PROXY_CLASS_NAME, runtime.getObject(), runtime.getObject().getAllocator());
+
+			// このクラス用の特異メソッド
+			proxyClass.getSingletonClass().defineMethod("include_resource", new Callback() {
+				public IRubyObject execute(IRubyObject self, IRubyObject[] args, Block block) {
+					Ruby runtime = self.getRuntime();
+					if (args.length < 1) {
+						throw runtime.newArgumentError(args.length, 1);
+					}
+					return self.callMethod(runtime.getCurrentContext(), "class_eval", loadResourceAsString(args[0]));
+				}
+
+				public Arity getArity() {
+					return Arity.ONE_ARGUMENT;
+				}
+				
+			});
+
+			// インスタンスメソッド
+			proxyClass.defineMethod("include_resource", new Callback() {
+				public IRubyObject execute(IRubyObject self, IRubyObject[] args, Block block) {
+					Ruby runtime = self.getRuntime();
+					if (args.length < 1) {
+						throw runtime.newArgumentError(args.length, 1);
+					}
+					return self.callMethod(runtime.getCurrentContext(), "instance_eval", loadResourceAsString(args[0]));
+				}
+
+				public Arity getArity() {
+					return Arity.ONE_ARGUMENT;
+				}
+			});
 
 			proxyClass.defineMethod("method_missing", new Callback(){
 				public Arity getArity() {
@@ -189,6 +203,42 @@ public class ApplicationContextSupport {
 		}
 	}
 
+	public static IRubyObject scopedInstanceEval(IRubyObject self, IRubyObject script)
+	{
+		Ruby runtime = self.getRuntime();
+		ThreadContext context = runtime.getCurrentContext();
+		RubyThread thread = context.getThread();
+		DynamicScope evalScope = new DynamicScope(new LocalStaticScope(null)); //context.getCurrentScope().cloneScope();
+		context.pushScope(evalScope);
+		IRubyObject binding = self.callMethod(context, "binding");
+		thread.aset(RubySymbol.newSymbol(runtime, BINDING_TLD_NAME), binding);
+		try {
+			return self.callMethod(context, "instance_eval", script);
+		} 
+		finally {
+			context.popScope();
+		}
+	}
+
+	public static IRubyObject scopedInstanceEval(IRubyObject self, String script)
+	{
+		Ruby runtime = self.getRuntime();
+		return scopedInstanceEval(self, RubyString.newUnicodeString(runtime, script));
+	}
+
+	public static IRubyObject evalWithApplicationContextBinding(IRubyObject self, String expr)
+	{
+		Ruby runtime = self.getRuntime();
+		ThreadContext context = runtime.getCurrentContext();
+		RubyThread thread = context.getThread();
+		IRubyObject binding = thread.aref(RubySymbol.newSymbol(runtime, BINDING_TLD_NAME));
+		IRubyObject[] args = new IRubyObject[binding == null? 1 : 2];
+		args[0] = RubyString.newUnicodeString(runtime, expr);
+		if (args.length > 1) args[1] = binding;
+		return self.callMethod(context, "eval", args);
+
+	}
+	
 	public static interface ProxyClassCallback {
 		public boolean isRefreshNeeded() throws IOException;
 		public void onDefined(RubyClass newProxyClass);

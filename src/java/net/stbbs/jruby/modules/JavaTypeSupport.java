@@ -5,13 +5,16 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
+import java.math.BigDecimal;
 
 import net.stbbs.jruby.Decorator;
 import net.stbbs.jruby.Util;
 
 import org.jruby.Ruby;
+import org.jruby.RubyClass;
 import org.jruby.RubyFile;
 import org.jruby.RubyFixnum;
+import org.jruby.RubyFloat;
 import org.jruby.RubyModule;
 import org.jruby.anno.JRubyMethod;
 import org.jruby.javasupport.JavaEmbedUtils;
@@ -27,17 +30,41 @@ public class JavaTypeSupport {
 	public static void onRegister(RubyModule module)
 	{
 		final Ruby runtime = module.getRuntime();
-		runtime.getFixnum().defineMethod("to_java_int", new Callback() {
-
+		RubyClass fixnum = runtime.getFixnum();
+		fixnum.defineMethod("to_java_int", new Callback() {
 			public IRubyObject execute(IRubyObject self, IRubyObject[] args,Block block) {
 				return JavaObject.wrap(runtime, new Integer(RubyFixnum.fix2int(self)));
 			}
-
 			public Arity getArity() {
 				return Arity.NO_ARGUMENTS;
 			}
-			
 		});
+		fixnum.defineMethod("to_java_bigdecimal", new Callback() {
+			public IRubyObject execute(IRubyObject self, IRubyObject[] args,Block block) {
+				return JavaObject.wrap(runtime, new BigDecimal(RubyFixnum.fix2long(self)));
+			}
+			public Arity getArity() {
+				return Arity.NO_ARGUMENTS;
+			}
+		});
+		RubyClass rubyFloat = runtime.getClass("Float");
+		rubyFloat.defineMethod("to_java_float", new Callback() {
+			public IRubyObject execute(IRubyObject self, IRubyObject[] args,Block block) {
+				return JavaObject.wrap(runtime, new Float(RubyFloat.num2dbl(self)));
+			}
+			public Arity getArity() {
+				return Arity.NO_ARGUMENTS;
+			}
+		});
+		rubyFloat.defineMethod("to_java_bigdecimal", new Callback() {
+			public IRubyObject execute(IRubyObject self, IRubyObject[] args,Block block) {
+				return JavaObject.wrap(runtime, new BigDecimal(RubyFloat.num2dbl(self)));
+			}
+			public Arity getArity() {
+				return Arity.NO_ARGUMENTS;
+			}
+		});
+			
 		Util.registerDecorator(runtime, StringDecorator.class);
 		Util.registerDecorator(runtime, ByteArrayDecorator.class);
 	}
@@ -56,6 +83,11 @@ public class JavaTypeSupport {
 			return '"' + str + '"';
 		}
 		
+		@JRubyMethod
+		public IRubyObject to_java_bigdecimal(IRubyObject self, IRubyObject[] args,Block block)
+		{
+			return JavaObject.wrap(self.getRuntime(), new BigDecimal(self.asString().getUnicodeValue()));
+		}
 	}
 
 	@Decorator(byte[].class)

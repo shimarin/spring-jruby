@@ -7,8 +7,11 @@ import javax.servlet.http.HttpServletRequest;
 
 import org.jruby.Ruby;
 import org.jruby.RubyArray;
+import org.jruby.RubyBoolean;
 import org.jruby.RubyModule;
+import org.jruby.RubyNumeric;
 import org.jruby.RubyString;
+import org.jruby.RubySymbol;
 import org.jruby.anno.JRubyMethod;
 import org.jruby.javasupport.JavaEmbedUtils;
 import org.jruby.runtime.Block;
@@ -22,9 +25,17 @@ import net.stbbs.jruby.Util;
 import net.stbbs.spring.jruby.modules.ApplicationContextSupport.ApplicationContextDecorator;
 
 public class RequestContextSupport {
-	
+
 	protected static final String P_ATTRIBUTE_NAME = "__ruby_p";
-	
+
+	public static List<IRubyObject> getRubyPObjects()
+	{
+		RequestAttributes reqAttrs = RequestContextHolder.getRequestAttributes();
+		if (reqAttrs == null) return null;
+		return (List<IRubyObject>)reqAttrs.getAttribute(
+			P_ATTRIBUTE_NAME, RequestAttributes.SCOPE_REQUEST);
+	}
+
 	public static void onRegister(RubyModule module)
 	{
 		Ruby runtime = module.getRuntime();
@@ -33,7 +44,7 @@ public class RequestContextSupport {
 	}
 
 	@JRubyMethod
-	public HttpServletRequest servletRequest(IRubyObject self, IRubyObject[] args, Block block)
+	public HttpServletRequest request(IRubyObject self, IRubyObject[] args, Block block)
 	{
 		return ((ServletRequestAttributes)RequestContextHolder.getRequestAttributes()).getRequest();
 	}
@@ -47,27 +58,28 @@ public class RequestContextSupport {
 	@JRubyMethod
 	public ParamsProxy params(IRubyObject self, IRubyObject[] args, Block block)
 	{
-		return new ParamsProxy(this.servletRequest(self, args, block));
+		return new ParamsProxy(this.request(self, args, block));
 	}
 	
 	@JRubyMethod
 	public void p(IRubyObject self, IRubyObject[] args, Block block)
 	{
 		ApplicationContextDecorator.p(args);
+		RequestAttributes reqAttrs = RequestContextHolder.getRequestAttributes();
+		if (reqAttrs == null) return;		// requestcontextlistenerが働いていない
 		List<IRubyObject> ruby_p = getRubyPObjects();
 		if (ruby_p == null) {
 			ruby_p = new ArrayList<IRubyObject>();
-			RequestContextHolder.getRequestAttributes().setAttribute(P_ATTRIBUTE_NAME, ruby_p, RequestAttributes.SCOPE_REQUEST);
+			reqAttrs.setAttribute(P_ATTRIBUTE_NAME, ruby_p, RequestAttributes.SCOPE_REQUEST);
 		}
 		for (IRubyObject obj:args) {
-			ruby_p.add(obj.callMethod(self.getRuntime().getCurrentContext(), "dup"));
+			if (obj.isNil() || obj instanceof RubyBoolean || obj instanceof RubySymbol || obj instanceof RubyNumeric) {
+				// dupしない
+			} else {
+				obj = obj.callMethod(self.getRuntime().getCurrentContext(), "dup");
+			}
+			ruby_p.add(obj);
 		}
-	}
-	
-	public static List<IRubyObject> getRubyPObjects()
-	{
-		return (List<IRubyObject>)RequestContextHolder.getRequestAttributes().getAttribute(
-				P_ATTRIBUTE_NAME, RequestAttributes.SCOPE_REQUEST);
 	}
 	
 	public static class ParamsProxy {

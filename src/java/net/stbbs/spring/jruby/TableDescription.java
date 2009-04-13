@@ -5,12 +5,12 @@ import java.util.Collection;
 
 public class TableDescription {
 	private String tableName;
-	private Collection<ColumnDescription> columns;
+	private Collection/*<ColumnDescription>*/ columns;
 	
 	public TableDescription(String tableName)
 	{
 		this.tableName = tableName;
-		this.columns = new ArrayList<ColumnDescription>();
+		this.columns = new ArrayList/*<ColumnDescription>*/();
 	}
 	
 	public void addColumn(ColumnDescription col)
@@ -23,7 +23,7 @@ public class TableDescription {
 		return tableName;
 	}
 	
-	public Collection<ColumnDescription> getColumns()
+	public Collection/*<ColumnDescription>*/ getColumns()
 	{
 		return columns;
 	}

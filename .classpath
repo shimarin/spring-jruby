@@ -45,5 +45,6 @@
 	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/jasperreports-3.1.4.jar"/>
 	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/commons-digester-2.0.jar"/>
 	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/iText-2.1.5.jar"/>
+	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/jsonic-1.1.0.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

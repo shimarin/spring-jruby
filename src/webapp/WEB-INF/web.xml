@@ -23,6 +23,15 @@
 	    <url-pattern>/messagebroker/*</url-pattern>
 	</servlet-mapping>
 
+	<servlet>
+		<servlet-name>JSONRPCServlet</servlet-name>
+		<servlet-class>net.stbbs.spring.jruby.JSONRPCServlet</servlet-class>
+	</servlet>
+	<servlet-mapping>
+	    <servlet-name>JSONRPCServlet</servlet-name>
+	    <url-pattern>/jsonrpc/*</url-pattern>
+	</servlet-mapping>
+
 	<listener>
 	    <listener-class>org.springframework.web.context.ContextLoaderListener</listener-class>
 	</listener>
