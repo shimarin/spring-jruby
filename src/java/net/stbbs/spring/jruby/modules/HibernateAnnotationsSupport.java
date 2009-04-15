@@ -7,12 +7,15 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
 
 import javax.persistence.Entity;
 import javax.persistence.Table;
+
+import net.stbbs.jruby.Util;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -22,6 +25,7 @@ import org.hibernate.SessionFactory;
 import org.hibernate.cfg.AnnotationConfiguration;
 import org.hibernate.cfg.Settings;
 import org.hibernate.impl.SessionFactoryImpl;
+import org.hibernate.persister.entity.AbstractEntityPersister;
 import org.hibernate.tool.hbm2ddl.SchemaUpdate;
 import org.jruby.Ruby;
 import org.jruby.RubyArray;
@@ -66,6 +70,7 @@ public class HibernateAnnotationsSupport extends DataSourceSupport {
 	public static void onRegister(RubyModule module)
 	{
 		Ruby runtime = module.getRuntime();
+		Util.registerDecorator(runtime, SessionFactory.class, SessionFactoryDecorator.class);
 	}
 	
 	protected Collection<Class> anArgToClasses(IRubyObject arg)
@@ -232,6 +237,35 @@ public class HibernateAnnotationsSupport extends DataSourceSupport {
 				out.write(buf, 0, readBytes);
 			}
 			return out.toByteArray();
+		}
+	}
+	
+	public static class SessionFactoryDecorator {
+		private SessionFactory sessionFactory;
+		public SessionFactoryDecorator(SessionFactory sessionFactory)
+		{
+			this.sessionFactory = sessionFactory;
+		}
+		
+		@JRubyMethod
+		public void schemaUpdate(IRubyObject self, IRubyObject[] args, Block block)
+		{
+			Ruby runtime = self.getRuntime();
+			Map md = sessionFactory.getAllClassMetadata();
+			AnnotationConfiguration ac = new AnnotationConfiguration();
+			for (Object e:md.values()) {
+				if (!(e instanceof AbstractEntityPersister)) continue;
+				AbstractEntityPersister persister = (AbstractEntityPersister)e;
+				Class returnedClass = persister.getType().getReturnedClass();
+				Entity t = (Entity)returnedClass.getAnnotation(Entity.class);
+				if (t != null) {
+					ac.addAnnotatedClass(returnedClass);
+				}
+			}
+
+			Settings settings = ((SessionFactoryImpl)sessionFactory).getSettings();
+			SchemaUpdate su = new SchemaUpdate(ac, settings);
+			su.execute(true, true);
 		}
 	}
 

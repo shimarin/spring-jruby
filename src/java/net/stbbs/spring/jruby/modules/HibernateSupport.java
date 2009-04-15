@@ -4,7 +4,6 @@ package net.stbbs.spring.jruby.modules;
 import java.beans.PropertyDescriptor;
 import java.io.Serializable;
 import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
@@ -15,7 +14,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import net.stbbs.jruby.Decorator;
 import net.stbbs.jruby.Util;
 
 import org.apache.commons.logging.Log;
@@ -74,9 +72,10 @@ public class HibernateSupport extends DataSourceSupport {
 	public static void onRegister(RubyModule module)
 	{
 		Ruby runtime = module.getRuntime();
-		Util.registerDecorator(runtime, HibernateEntityProxyDecorator.class);
-		Util.registerDecorator(runtime, HibernateIdClassProxyDecorator.class);
-		
+		Util.registerDecorator(runtime, HibernateEntityProxy.class, HibernateEntityProxyDecorator.class);
+		Util.registerDecorator(runtime, HibernateIdClassProxy.class, HibernateIdClassProxyDecorator.class);
+		Util.registerDecorator(runtime, Query.class, QueryDecorator.class);		
+
 		/**
 		 * アプリケーションコンテキストに登録されている全てのSessionFactoryについて、エンティティをエンハンスする
 		 */
@@ -102,6 +101,27 @@ public class HibernateSupport extends DataSourceSupport {
 	@JRubyMethod
 	public Session currentSession(IRubyObject self, IRubyObject[] args, Block block) {
 		return getCurrentSession();
+	}
+	
+	@JRubyMethod(required=1)
+	public Query hql(IRubyObject self, IRubyObject[] args, Block block)
+	{
+		Ruby runtime = self.getRuntime();
+		if (args.length < 1) {
+			throw runtime.newArgumentError(args.length, 1);
+		}
+		Query q = getCurrentSession().createQuery(args[0].asString().getUnicodeValue());
+		if (args[1] instanceof RubyHash) {
+			Map<String,IRubyObject> hash = Util.convertRubyHash(args[1].convertToHash());
+			for (Map.Entry<String, IRubyObject> entry:hash.entrySet()) {
+				q.setParameter(entry.getKey(), JavaEmbedUtils.rubyToJava(runtime, entry.getValue(), null));
+			}
+		} else {
+			for (int i = 1; i < args.length; i++) {
+				q.setParameter(i - 1, JavaEmbedUtils.rubyToJava(runtime,args[i], null));
+			}
+		}
+		return q;
 	}
 
 	/**
@@ -227,7 +247,6 @@ public class HibernateSupport extends DataSourceSupport {
 		}
 	}
 	
-	@Decorator(HibernateEntityProxy.class)
 	public static class HibernateEntityProxyDecorator {
 		private HibernateEntityProxy entityProxy;
 		public HibernateEntityProxyDecorator(HibernateEntityProxy entityProxy)
@@ -269,8 +288,15 @@ public class HibernateSupport extends DataSourceSupport {
 				hql += " " + cond;
 			}
 			Query q = session.createQuery(hql);
-			for (int i = 1; i < args.length; i++) {
-				q.setParameter(i - 1, JavaEmbedUtils.rubyToJava(runtime,args[i], null));
+			if (args[1] instanceof RubyHash) {
+				Map<String,IRubyObject> hash = Util.convertRubyHash(args[1].convertToHash());
+				for (Map.Entry<String, IRubyObject> entry:hash.entrySet()) {
+					q.setParameter(entry.getKey(), JavaEmbedUtils.rubyToJava(runtime, entry.getValue(), null));
+				}
+			} else {
+				for (int i = 1; i < args.length; i++) {
+					q.setParameter(i - 1, JavaEmbedUtils.rubyToJava(runtime,args[i], null));
+				}
 			}
 			return q.list();
 		}
@@ -301,7 +327,32 @@ public class HibernateSupport extends DataSourceSupport {
 		}
 	}
 	
-	@Decorator(HibernateIdClassProxy.class)
+	public static class QueryDecorator {
+		private Query query;
+		public QueryDecorator(Query query)
+		{
+			this.query = query;
+		}
+
+		public static void onRegister(RubyModule module)
+		{
+			module.include(new IRubyObject[] {module.getRuntime().getModule("Enumerable")});
+		}
+
+		@JRubyMethod
+		public IRubyObject each(IRubyObject self, IRubyObject[] args, Block block)
+		{
+			List results = query.list();
+			if (!block.isGiven()) return self;
+			
+			Ruby runtime = self.getRuntime();
+			for (Object o:results) {
+				block.call(runtime.getCurrentContext(), new IRubyObject[]{JavaEmbedUtils.javaToRuby(runtime, o)});
+			}
+			return self;
+		}
+	}
+	
 	public static class HibernateIdClassProxyDecorator {
 		private HibernateIdClassProxy idClassProxy;
 		public HibernateIdClassProxyDecorator(HibernateIdClassProxy idClassProxy)

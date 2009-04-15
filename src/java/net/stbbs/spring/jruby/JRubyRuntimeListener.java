@@ -117,7 +117,7 @@ public class JRubyRuntimeListener implements ServletContextListener {
 	
 	public static IRubyObject getApplicationContextObject(ServletContext context)
 	{
-		return (RubyClass)context.getAttribute(ApplicationContextSupport.APPLICATIONCONTEXT_OBJECT_NAME);
+		return (IRubyObject)context.getAttribute(ApplicationContextSupport.APPLICATIONCONTEXT_OBJECT_NAME);
 	}
 
 	public static class WebApplicationProxyClassCallback implements ProxyClassCallback {

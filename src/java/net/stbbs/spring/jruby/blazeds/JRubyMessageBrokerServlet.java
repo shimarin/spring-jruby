@@ -15,6 +15,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import net.stbbs.spring.jruby.JRubyRuntimeListener;
+import net.stbbs.spring.jruby.modules.ApplicationContextSupport;
 import net.stbbs.spring.jruby.modules.BlazeDSSupport;
 
 import org.jruby.Ruby;
@@ -79,6 +80,7 @@ public class JRubyMessageBrokerServlet  extends HttpServlet {
 		if (applicationContext == null) {
 			try {
 				applicationContext = JRubyRuntimeListener.initializeRuntime(this.getServletContext());
+				servletConfig.getServletContext().setAttribute(ApplicationContextSupport.APPLICATIONCONTEXT_OBJECT_NAME, applicationContext);
 			} catch (IOException e) {
 				throw new ServletException(e);
 			}

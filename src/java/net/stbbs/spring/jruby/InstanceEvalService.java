@@ -7,7 +7,9 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.sql.Time;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -44,6 +46,8 @@ import org.springframework.beans.BeanWrapperImpl;
 import org.springframework.jdbc.support.rowset.SqlRowSet;
 import org.springframework.jdbc.support.rowset.SqlRowSetMetaData;
 
+import com.sun.jmx.snmp.Timestamp;
+
 public class InstanceEvalService {
 	protected IRubyObject applicationContext;
 	private Log logger;	
@@ -60,6 +64,7 @@ public class InstanceEvalService {
 		applicationContext = JRubyRuntimeListener.getApplicationContextObject(servletContext);
 		if (applicationContext == null) {
 			applicationContext = JRubyRuntimeListener.initializeRuntime(servletContext);
+			servletContext.setAttribute(ApplicationContextSupport.APPLICATIONCONTEXT_OBJECT_NAME, applicationContext);
 		}
 	}
 	
@@ -197,13 +202,30 @@ public class InstanceEvalService {
 		Field[] fields = obj.getClass().getFields();
 
 		out.println(escapeHTML( obj.toString() ) + "<br>");
-		out.println("<table border='1'>");
+		Map<String,Object> propsMap = new HashMap<String,Object>();
+		
 		for (int i = 0; i < props.length; i++) {
 			PropertyDescriptor pd = props[i];
+			// 単純なsetter/getterで R/Wともに可能なプロパティ以外は除外する
+			Method readMethod = pd.getReadMethod();
+			Method writeMethod = pd.getWriteMethod();
+			if (readMethod == null) continue;
+			if (readMethod.getParameterTypes().length != 0) continue;
+			Class returnType = readMethod.getReturnType();
+			if (writeMethod == null || writeMethod.getParameterTypes().length != 1 || writeMethod.getParameterTypes()[0] != returnType) {
+				final Class[] readableClasses = {
+					Boolean.class, Byte.class, Character.class, Class.class, Double.class, Float.class, Integer.class, Long.class, 
+					Short.class, String.class, java.util.Date.class, java.sql.Date.class, Timestamp.class, Time.class,
+				};
+				boolean readable = false;
+				for (Class readableClass:readableClasses) {
+					if (readableClass == returnType) readable = true;
+				}
+				if (!readable) continue;
+			}
+
 			Object value = bw.getPropertyValue(pd.getName());
-			out.println("<tr>");
-			out.println("<th>" + escapeHTML(pd.getDisplayName()) + "</th><td>" + escapeHTML( obj2str(value))  + "</td>");
-			out.println("</tr>");
+			propsMap.put(pd.getName(), value);
 		}
 		
 		for (int i = 0; i < fields.length; i++) {
@@ -223,9 +245,14 @@ public class InstanceEvalService {
 				out.println("</tr>");
 			}
 		}
-		
+
+		out.println("<table border='1'>");
+		for (Map.Entry<String,Object> entry:propsMap.entrySet()) {
+			out.println("<tr>");
+			out.println("<th>" + escapeHTML(entry.getKey()) + "</th><td>" + escapeHTML( obj2str(entry.getValue()))  + "</td>");
+			out.println("</tr>");
+		}		
 		out.println("</table>");
-		//out.println(escapeHTML( obj2str(obj) ));
 	}
 	
 	static protected void printResult(PrintWriter out, Ruby ruby, 
