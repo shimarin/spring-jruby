@@ -23,6 +23,7 @@ import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import net.stbbs.jruby.Util;
 import net.stbbs.jruby.modules.BufferedImageRenderer;
 import net.stbbs.spring.jruby.TableDescription.ColumnDescription;
 import net.stbbs.spring.jruby.modules.ApplicationContextSupport;
@@ -34,6 +35,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.jruby.Ruby;
 import org.jruby.RubyException;
+import org.jruby.RubyHash;
 import org.jruby.RubyMethod;
 import org.jruby.RubyNil;
 import org.jruby.RubyObject;
@@ -240,9 +242,7 @@ public class InstanceEvalService {
 				} catch (IllegalAccessException e1) {
 					continue;
 				}
-				out.println("<tr>");
-				out.println("<th>" + escapeHTML(f.getName()) + "</th><td>" + escapeHTML( obj2str(value) ) + "</td>");
-				out.println("</tr>");
+				propsMap.put(f.getName(), value);
 			}
 		}
 
@@ -427,14 +427,28 @@ public class InstanceEvalService {
 		
 		// ダウンロードの場合の処理
 		if (exec) {
-			Object o = result != null? JavaEmbedUtils.rubyToJava(result.getRuntime(), result, null) : null;
 			DownloadContent dc = null;
-			if (o instanceof DownloadContent) {
-				dc = (DownloadContent)o;
-			} else if (o instanceof byte[]) {
-				dc = new DownloadContent((byte[])o);
-			} else if (o instanceof BufferedImage) {
-				dc = new DownloadContent(BufferedImageRenderer.toByteArray((BufferedImage)o, "png"));
+			if (result instanceof RubyHash) {
+				Map<String,IRubyObject> hash = Util.convertRubyHash((RubyHash)result);
+				IRubyObject contentType = hash.get("content_type");
+				IRubyObject content = hash.get("content");
+				if (contentType != null && content != null) {
+					byte[] bacontent = (byte[])JavaEmbedUtils.rubyToJava(result.getRuntime(), content, byte[].class);
+					if (bacontent != null) {
+						dc = new DownloadContent(contentType.asString().getUnicodeValue(), bacontent);
+					} else {
+						dc = new DownloadContent(contentType.asString().getUnicodeValue(), content.asString().getBytes());
+					}
+				}
+			} else {
+				Object o = result != null? JavaEmbedUtils.rubyToJava(result.getRuntime(), result, null) : null;
+				if (o instanceof DownloadContent) {
+					dc = (DownloadContent)o;
+				} else if (o instanceof byte[]) {
+					dc = new DownloadContent((byte[])o);
+				} else if (o instanceof BufferedImage) {
+					dc = new DownloadContent(BufferedImageRenderer.toByteArray((BufferedImage)o, "png"));
+				}
 			}
 			if (dc != null) {
 				response.setContentType(dc.getContentType());
