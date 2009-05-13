@@ -27,7 +27,9 @@
 	<bean id="sessionFactory" 
 		class="org.springframework.orm.hibernate3.annotation.AnnotationSessionFactoryBean">
 		<property name="dataSource" ref="dataSource"/>
+		<!--
 		<property name="schemaUpdate" value="true"/>
+		-->
 		<property name="annotatedClasses">
 			<list>
 				<value>example.Address</value>
@@ -40,7 +42,9 @@
 		</property>
 		<property name="hibernateProperties">
 			<props>
+			<!--
 				<prop key="hibernate.dialect">org.hibernate.dialect.H2Dialect</prop>
+			-->
 				<prop key="hibernate.show_sql">true</prop>
 			</props>
 		</property>

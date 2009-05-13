@@ -6,6 +6,7 @@ java_module Java::net.stbbs.jruby.modules.MIDISupport
 java_module Java::net.stbbs.jruby.modules.GraphicsSupport
 java_module Java::net.stbbs.jruby.modules.URLConnectionSupport
 java_module Java::net.stbbs.jruby.modules.JRubyRuntimeSupport
+java_module "net.stbbs.jruby.modules.POISupport", "org.apache.poi.hssf.usermodel.HSSFWorkbook"
 java_module "net.stbbs.jruby.modules.ICUSupport", "com.ibm.icu.text.Normalizer"
 java_module "net.stbbs.jruby.modules.Dom4jSupport", "org.dom4j.Document"
 java_module "net.stbbs.jruby.modules.PHPRPCSupport", "org.phprpc.PHPRPC_Client"
@@ -21,3 +22,4 @@ java_module "net.stbbs.spring.jruby.modules.HibernateSupport", "org.hibernate.Se
 java_module "net.stbbs.spring.jruby.modules.HibernateAnnotationsSupport", ["org.hibernate.cfg.AnnotationConfiguration", "javax.persistence.Entity"]
 java_module "net.stbbs.spring.jruby.modules.JasperReportsSupport", ["net.sf.jasperreports.engine.JasperReport","org.apache.commons.digester.Digester"]
 java_module "net.stbbs.spring.jruby.modules.DbUnitSupport", ["org.dbunit.IDatabaseTester","org.apache.poi.hssf.usermodel.HSSFWorkbook"]
+java_module "net.stbbs.spring.jruby.modules.MySQLSupport", "com.mysql.jdbc.jdbc2.optional.MysqlDataSource"

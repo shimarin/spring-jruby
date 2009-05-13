@@ -1,6 +1,10 @@
 package net.stbbs.spring.jruby.blazeds;
 
 import org.jruby.Ruby;
+import org.jruby.RubyClass;
+import org.jruby.RubyMethod;
+import org.jruby.RubyObject;
+import org.jruby.RubySymbol;
 import org.jruby.javasupport.JavaEmbedUtils;
 import org.jruby.runtime.ThreadContext;
 import org.jruby.runtime.builtin.IRubyObject;
@@ -28,7 +32,13 @@ public class JRubyFactory implements FlexFactory {
 		Ruby runtime = applicationContext.getRuntime();
 		IRubyObject ro = applicationContext.callMethod(runtime.getCurrentContext(), "allocateProxyObject");
 		ThreadContext context = runtime.getCurrentContext();
-		return JavaEmbedUtils.rubyToJava(runtime, ro.callMethod(context, factoryInfo.getSource()), null);
+		String source = factoryInfo.getSource();
+		RubyClass metaClass = ro.getMetaClass();
+		RubySymbol methodName = RubySymbol.newSymbol(runtime, source);
+		boolean noPublic = metaClass.callMethod(context, "private_method_defined?", methodName).isTrue();
+		noPublic |= metaClass.callMethod(context, "protected_method_defined?", methodName).isTrue();
+		if (noPublic) return null;
+		return JavaEmbedUtils.rubyToJava(runtime, ro.callMethod(context, source), null);
 	}
 
 	public void initialize(String id, ConfigMap properties) {

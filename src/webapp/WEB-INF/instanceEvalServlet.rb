@@ -10,6 +10,8 @@ BlazeDSConfig = {
 	}
 }
 
+private
+
 # return true/false/nil
 def instance_eval_servlet_host_check(hostname, ipaddress)
 end
@@ -19,5 +21,5 @@ def instance_eval_servlet_authentication(username, password)
 end
 
 def webapplication_init
-  p "webapplication_init"
+	sessionFactory.schemaUpdate
 end

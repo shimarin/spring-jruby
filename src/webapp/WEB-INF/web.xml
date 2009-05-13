@@ -5,6 +5,15 @@
 	version="2.4">
 
 	<servlet>
+		<servlet-name>H2Servlet</servlet-name>
+		<servlet-class>org.h2.server.web.WebServlet</servlet-class>
+	</servlet>
+	<servlet-mapping>
+	    <servlet-name>H2Servlet</servlet-name>
+	    <url-pattern>/h2/*</url-pattern>
+	</servlet-mapping>
+
+	<servlet>
 	    <servlet-name>InstanceEvalServlet</servlet-name>
 	    <servlet-class>net.stbbs.spring.jruby.InstanceEvalServlet</servlet-class>
 		<load-on-startup>1</load-on-startup>

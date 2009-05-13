@@ -205,7 +205,7 @@ public class JRubyRuntimeListener implements ServletContextListener {
 		public void onDefined(RubyClass newProxyClass) {
 			Resource r = applicationContext.getResource(initScript);
 			if (r == null || !r.exists()) {
-				r = applicationContext.getResource("classpath:net/stbbs/spring/jruby/InstanceEvalServlet.rb");
+				r = applicationContext.getResource("classpath:net/stbbs/spring/jruby/instanceEvalServlet.rb");
 			}
 			
 			Ruby runtime = newProxyClass.getRuntime();

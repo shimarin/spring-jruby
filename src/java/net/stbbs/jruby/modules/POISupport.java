@@ -2,10 +2,12 @@ package net.stbbs.jruby.modules;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Calendar;
 import java.util.Date;
 
-import net.stbbs.jruby.Decorator;import net.stbbs.jruby.Util;
+import net.stbbs.jruby.Decorator;
+import net.stbbs.jruby.Util;
 
 import org.apache.poi.hssf.usermodel.HSSFCell;
 import org.apache.poi.hssf.usermodel.HSSFCellStyle;
@@ -27,6 +29,7 @@ public class POISupport {
 	public static void onRegister(RubyModule module)
 	{
 		Ruby runtime = module.getRuntime();
+		Util.registerDecorator(runtime, InputStream.class, InputStreamDecorator.class);
 		Util.registerDecorator(runtime, HSSFSheetDecorator.class);
 		Util.registerDecorator(runtime, HSSFWorkbookDecorator.class);
 	}
@@ -45,6 +48,20 @@ public class POISupport {
 		return rwb;
 	}
 
+	public static class InputStreamDecorator {
+		private InputStream is;
+		public InputStreamDecorator(InputStream is)
+		{
+			this.is = is;
+		}
+		
+		@JRubyMethod
+		public HSSFWorkbook loadExcelWorkbook(IRubyObject self, IRubyObject[] args, Block block) throws IOException
+		{
+			return new HSSFWorkbook(is);
+		}
+	}
+	
 	@Decorator(HSSFSheet.class)
 	public static class HSSFSheetDecorator {
 		private HSSFSheet sheet;
@@ -144,6 +161,12 @@ public class POISupport {
 				block.call(runtime.getCurrentContext(), new IRubyObject[] {rsheet});
 			}
 			return rsheet;
+		}
+		
+		@JRubyMethod(name="[]",required=1)
+		public HSSFSheet get_sheet_by_index(IRubyObject self, IRubyObject[] args, Block block)
+		{
+			return workbook.getSheetAt((int)args[0].convertToInteger().getLongValue());
 		}
 	}
 }

@@ -17,3 +17,4 @@ include Dom4jSupport if defined? Dom4jSupport
 include RequestContextSupport if defined? RequestContextSupport
 include PHPRPCSupport if defined? PHPRPCSupport
 include DbUnitSupport if defined? DbUnitSupport
+include MySQLSupport if defined? MySQLSupport
