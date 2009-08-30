@@ -39,26 +39,32 @@ public class RequestContextSupport {
 	public static void onRegister(RubyModule module)
 	{
 		Ruby runtime = module.getRuntime();
-		Util.registerDecorator(runtime, SessionProxyDecorator.class);
+		Util.registerDecorator(runtime, VarProxyDecorator.class);
 		Util.registerDecorator(runtime, ParamsProxyDecorator.class);
 	}
 
 	@JRubyMethod
-	public HttpServletRequest request(IRubyObject self, IRubyObject[] args, Block block)
+	public HttpServletRequest servletRequest(IRubyObject self, IRubyObject[] args, Block block)
 	{
 		return ((ServletRequestAttributes)RequestContextHolder.getRequestAttributes()).getRequest();
 	}
 	
 	@JRubyMethod
-	public SessionProxy session(IRubyObject self, IRubyObject[] args, Block block)
+	public VarProxy request(IRubyObject self, IRubyObject[] args, Block block)
 	{
-		return new SessionProxy(RequestContextHolder.getRequestAttributes());
+		return new VarProxy(RequestContextHolder.getRequestAttributes(), RequestAttributes.SCOPE_REQUEST);
+	}
+	
+	@JRubyMethod
+	public VarProxy session(IRubyObject self, IRubyObject[] args, Block block)
+	{
+		return new VarProxy(RequestContextHolder.getRequestAttributes(), RequestAttributes.SCOPE_SESSION);
 	}
 	
 	@JRubyMethod
 	public ParamsProxy params(IRubyObject self, IRubyObject[] args, Block block)
 	{
-		return new ParamsProxy(this.request(self, args, block));
+		return new ParamsProxy(this.servletRequest(self, args, block));
 	}
 	
 	@JRubyMethod
@@ -117,37 +123,41 @@ public class RequestContextSupport {
 			return arr;
 		}
 	}
-
-	public static class SessionProxy {
+	
+	public static class VarProxy {
 		private RequestAttributes requestAttributes;
-		public SessionProxy(RequestAttributes requestAttributes)
+		private int scope;
+		public VarProxy(RequestAttributes requestAttributes, int scope)
 		{
 			this.requestAttributes = requestAttributes;
+			this.scope = scope;
 		}
 		public Object getValue(String name)
 		{
-			return requestAttributes.getAttribute(name, RequestAttributes.SCOPE_SESSION);
+			return requestAttributes.getAttribute(name, scope/*RequestAttributes.SCOPE_SESSION*/);
 		}
 		public void setValue(String name, Object value)
 		{
-			requestAttributes.setAttribute(name, value, RequestAttributes.SCOPE_SESSION);
+			requestAttributes.setAttribute(name, value, scope);
 		}
-	}
-	
-	@Decorator(SessionProxy.class)
-	public static class SessionProxyDecorator {
-		private SessionProxy sessionProxy;
 		
-		public SessionProxyDecorator(SessionProxy sessionProxy)
+	}
+
+	
+	@Decorator(VarProxy.class)
+	public static class VarProxyDecorator {
+		private VarProxy varProxy;
+		
+		public VarProxyDecorator(VarProxy varProxy)
 		{
-			this.sessionProxy = sessionProxy;
+			this.varProxy = varProxy;
 		}
 		
 		@JRubyMethod(name="[]")
 		public Object getValue(IRubyObject self, IRubyObject[] args, Block block)
 		{
 			String name = args[0].asString().getUnicodeValue();
-			return sessionProxy.getValue(name);
+			return varProxy.getValue(name);
 		}
 		
 		@JRubyMethod(name="[]=")
@@ -159,9 +169,9 @@ public class RequestContextSupport {
 				// 文字列の場合特別に処理しないとISO-8859-1で取り出されてしまう
 				obj = args[1].asString().getUnicodeValue();
 			} else {
-				obj = JavaEmbedUtils.rubyToJava(self.getRuntime(), args[1], null);
+				obj = Util.convertRubyToJava(args[1]);// Javaからも使えるようにJavaオブジェクトに変換
 			}
-			sessionProxy.setValue(name, obj);	// Javaからも使えるようにJavaオブジェクトに変換
+			varProxy.setValue(name, obj);
 		}
 	}
 }

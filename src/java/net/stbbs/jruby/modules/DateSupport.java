@@ -1,6 +1,7 @@
 package net.stbbs.jruby.modules;
 
 import java.text.DateFormat;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
@@ -23,10 +24,13 @@ public class DateSupport {
 	}
 	
 	@JRubyMethod
-	public static Date newDate(IRubyObject self, IRubyObject[] args, Block block)
+	public static Date newDate(IRubyObject self, IRubyObject[] args, Block block) throws ParseException
 	{
 		if (args.length == 0) {
 			return new Date();
+		}
+		if (args.length == 1) {
+			return DateFormat.getDateTimeInstance().parse(args[0].asString().getUnicodeValue());
 		}
 		// 引数が足りない場合エラー
 		if (args.length < 3) {

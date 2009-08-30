@@ -34,6 +34,7 @@ public class JspTag extends BodyTagSupport {
 
 	public int doEndTag() throws JspException
 	{
+		String expr = this.expr;
 		if (expr == null) {
 			expr = this.getBodyContent().getString();
 		}
@@ -49,14 +50,16 @@ public class JspTag extends BodyTagSupport {
 		if (var != null) {
 			pageContext.setAttribute(var, obj, PageContext.REQUEST_SCOPE);
 		} else {
-			try {
-				String out = obj.toString();
-				if (escapeXml == null || escapeXml == true) {
-					out = InstanceEvalService.escapeHTML(out);
+			if (obj != null) {
+				try {
+					String out = obj.toString();
+					if (escapeXml == null || escapeXml == true) {
+						out = InstanceEvalService.escapeHTML(out);
+					}
+					pageContext.getOut().write(out);
+				} catch (IOException e) {
+					throw new JspException(e);
 				}
-				pageContext.getOut().write(out);
-			} catch (IOException e) {
-				throw new JspException(e);
 			}
 		}
 		
