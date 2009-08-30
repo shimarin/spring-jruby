@@ -12,6 +12,7 @@ java_module "net.stbbs.jruby.modules.Dom4jSupport", "org.dom4j.Document"
 java_module "net.stbbs.jruby.modules.PHPRPCSupport", "org.phprpc.PHPRPC_Client"
 java_module "net.stbbs.jruby.modules.SSHSupport", "com.jcraft.jsch.JSch"
 java_module "net.stbbs.jruby.modules.JSONSupport", "net.arnx.jsonic.JSON"
+java_module "net.stbbs.jruby.modules.CSVSupport", ["spiffy.core.util.HashMapBuilder", "org.supercsv.io.ICsvWriter"]
 java_module Java::net.stbbs.spring.jruby.modules.RequestContextSupport, "org.springframework.web.context.request.RequestContextHolder"
 java_module Java::net.stbbs.spring.jruby.modules.JNDISupport
 java_module Java::net.stbbs.spring.jruby.modules.DownloadSupport
@@ -20,6 +21,7 @@ java_module Java::net.stbbs.spring.jruby.modules.TransactionSupport, "org.spring
 java_module "net.stbbs.spring.jruby.modules.BlazeDSSupport", "flex.messaging.Destination"
 java_module "net.stbbs.spring.jruby.modules.HibernateSupport", "org.hibernate.SessionFactory"
 java_module "net.stbbs.spring.jruby.modules.HibernateAnnotationsSupport", ["org.hibernate.cfg.AnnotationConfiguration", "javax.persistence.Entity"]
-java_module "net.stbbs.spring.jruby.modules.JasperReportsSupport", ["net.sf.jasperreports.engine.JasperReport","org.apache.commons.digester.Digester"]
+java_module "net.stbbs.spring.jruby.modules.JasperReportsSupport", ["net.sf.jasperreports.engine.JasperReport","net.sf.jasperreports.engine.export.oasis.JROdsExporter", "org.apache.commons.digester.Digester"]
 java_module "net.stbbs.spring.jruby.modules.DbUnitSupport", ["org.dbunit.IDatabaseTester","org.apache.poi.hssf.usermodel.HSSFWorkbook"]
 java_module "net.stbbs.spring.jruby.modules.MySQLSupport", "com.mysql.jdbc.jdbc2.optional.MysqlDataSource"
+java_module "net.stbbs.spring.jruby.modules.MailSupport", "javax.mail.internet.MimeMessage"

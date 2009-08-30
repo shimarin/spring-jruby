@@ -18,3 +18,4 @@ include RequestContextSupport if defined? RequestContextSupport
 include PHPRPCSupport if defined? PHPRPCSupport
 include DbUnitSupport if defined? DbUnitSupport
 include MySQLSupport if defined? MySQLSupport
+include CSVSupport if defined? CSVSupport
