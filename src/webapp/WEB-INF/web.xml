@@ -47,5 +47,12 @@
 	<listener>
 		<listener-class>org.springframework.web.context.request.RequestContextListener</listener-class>
 	</listener>
+	
+	<jsp-config>
+		<taglib>
+			<taglib-uri>http://www.stbbs.net/spring-jruby/JspTag</taglib-uri>
+			<taglib-location>/WEB-INF/spring-jruby.tld</taglib-location>
+		</taglib>
+	</jsp-config>
 
 </web-app>
