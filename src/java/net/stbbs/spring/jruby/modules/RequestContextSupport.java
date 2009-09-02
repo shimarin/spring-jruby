@@ -3,7 +3,9 @@ package net.stbbs.spring.jruby.modules;
 import java.util.ArrayList;
 import java.util.List;
 
+import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 
 import org.jruby.Ruby;
 import org.jruby.RubyArray;
@@ -19,6 +21,7 @@ import org.jruby.runtime.builtin.IRubyObject;
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.web.context.request.ServletWebRequest;
 
 import net.stbbs.jruby.Decorator;
 import net.stbbs.jruby.Util;
@@ -41,6 +44,7 @@ public class RequestContextSupport {
 		Ruby runtime = module.getRuntime();
 		Util.registerDecorator(runtime, VarProxyDecorator.class);
 		Util.registerDecorator(runtime, ParamsProxyDecorator.class);
+		Util.registerDecorator(runtime, CookiesProxyDecorator.class);
 	}
 
 	@JRubyMethod
@@ -48,7 +52,7 @@ public class RequestContextSupport {
 	{
 		return ((ServletRequestAttributes)RequestContextHolder.getRequestAttributes()).getRequest();
 	}
-	
+
 	@JRubyMethod
 	public VarProxy request(IRubyObject self, IRubyObject[] args, Block block)
 	{
@@ -65,6 +69,12 @@ public class RequestContextSupport {
 	public ParamsProxy params(IRubyObject self, IRubyObject[] args, Block block)
 	{
 		return new ParamsProxy(this.servletRequest(self, args, block));
+	}
+	
+	@JRubyMethod
+	public CookiesProxy cookies(IRubyObject self, IRubyObject[] args, Block block)
+	{
+		return new CookiesProxy(this.servletRequest(self, args, block).getCookies());
 	}
 	
 	@JRubyMethod
@@ -142,7 +152,6 @@ public class RequestContextSupport {
 		}
 		
 	}
-
 	
 	@Decorator(VarProxy.class)
 	public static class VarProxyDecorator {
@@ -172,6 +181,43 @@ public class RequestContextSupport {
 				obj = Util.convertRubyToJava(args[1]);// Javaからも使えるようにJavaオブジェクトに変換
 			}
 			varProxy.setValue(name, obj);
+		}
+	}
+	
+	public static class CookiesProxy {
+		private Cookie[] cookies;
+		public CookiesProxy(Cookie[] cookies)
+		{
+			this.cookies = cookies;
+		}
+		public Cookie getCookie(String name)
+		{
+			if (cookies == null) return null;
+			for (Cookie cookie:cookies) {
+				if (cookie.getName().equals(name)) return cookie;
+			}
+			return null;
+		}
+		public String getCookieValue(String name)
+		{
+			Cookie cookie = getCookie(name);
+			return cookie != null? cookie.getValue() : null;
+		}
+	}
+	
+	@Decorator(CookiesProxy.class)
+	public static class CookiesProxyDecorator {
+		private CookiesProxy cookiesProxy;
+		public CookiesProxyDecorator(CookiesProxy cookiesProxy)
+		{
+			this.cookiesProxy = cookiesProxy;
+		}
+		@JRubyMethod(name="[]")
+		public String getValue(IRubyObject self, IRubyObject[] args, Block block)
+		{
+			String name = args[0].asString().getUnicodeValue();
+			String value = cookiesProxy.getCookieValue(name);
+			return value;
 		}
 	}
 }

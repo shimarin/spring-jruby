@@ -9,7 +9,11 @@ import javax.servlet.jsp.tagext.BodyTagSupport;
 import net.stbbs.jruby.Util;
 import net.stbbs.spring.jruby.modules.ApplicationContextSupport;
 
+import org.jruby.javasupport.JavaEmbedUtils;
+import org.jruby.runtime.Arity;
+import org.jruby.runtime.Block;
 import org.jruby.runtime.builtin.IRubyObject;
+import org.jruby.runtime.callback.Callback;
 
 public class JspTag extends BodyTagSupport {
 
@@ -39,10 +43,19 @@ public class JspTag extends BodyTagSupport {
 			expr = this.getBodyContent().getString();
 		}
 
-		IRubyObject proxyObject = (IRubyObject) pageContext.getAttribute(PROXY_OBJECT_NAME, PageContext.REQUEST_SCOPE);
+		IRubyObject proxyObject = (IRubyObject) pageContext.getAttribute(PROXY_OBJECT_NAME, PageContext.PAGE_SCOPE);
 		if (proxyObject == null) {
 			IRubyObject aco = JRubyRuntimeListener.getApplicationContextObject(pageContext.getServletContext());
 			proxyObject = aco.callMethod(aco.getRuntime().getCurrentContext(), "allocateProxyObject");
+			proxyObject.getSingletonClass().defineMethod("servletResponse", new Callback(){
+				public IRubyObject execute(IRubyObject self, IRubyObject[] args, Block block) {
+					return JavaEmbedUtils.javaToRuby(self.getRuntime(), pageContext.getResponse());
+				}
+
+				public Arity getArity() {
+					return Arity.NO_ARGUMENTS;
+				}
+			} );
 		}
 		IRubyObject result = ApplicationContextSupport.scopedInstanceEval(proxyObject, expr);
 		Object obj = Util.convertRubyToJava(result);
