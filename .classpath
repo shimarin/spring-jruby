@@ -9,7 +9,6 @@
 	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/commons-collections-3.2.1.jar"/>
 	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/dom4j-1.6.1.jar"/>
 	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/ejb3-persistence.jar"/>
-	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/hibernate-3.3.1.GA.jar"/>
 	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/hibernate-annotations-3.4.0.GA.jar"/>
 	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/hibernate-commons-annotations-3.4.0.GA.jar"/>
 	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/javassist-3.8.1.jar"/>
@@ -51,5 +50,8 @@
 	<classpathentry kind="lib" path="lib/h2-1.1.113.jar"/>
 	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/spring-2.5.6.SEC01.jar"/>
 	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/icu4j-4_2_1.jar"/>
+	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/SuperCSV-1.52.jar"/>
+	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/hibernate-3.3.2.GA.jar"/>
+	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/commons-fileupload-1.2.1.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
