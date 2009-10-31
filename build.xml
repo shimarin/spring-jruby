@@ -20,6 +20,9 @@
 		<copy todir="${classes}">
 			<fileset dir="src/java" includes="**/*.xml,**/*.rb"/>
 		</copy>
+		<copy todir="${classes}">
+			<fileset dir="src/ruby" includes="**/*.rb"/>
+		</copy>
 		<copy todir="${classes}/META-INF">
 			<fileset dir="src/webapp/WEB-INF" includes="*.tld"/>
 		</copy>
