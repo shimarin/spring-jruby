@@ -52,5 +52,6 @@
 	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/icu4j-4_2_1.jar"/>
 	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/hibernate-3.3.2.GA.jar"/>
 	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/commons-fileupload-1.2.1.jar"/>
+	<classpathentry kind="lib" path="src/webapp/WEB-INF/lib/SuperCSV-1.52.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
